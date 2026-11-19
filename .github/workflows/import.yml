@@ -18,9 +18,9 @@ jobs:
         run: |
           mkdir -p /tmp/tree
           unzip -o -q /tmp/src/cardwake-otg-root-source-v1.0.0.zip -d /tmp/tree
-          rsync -a --exclude=.git /tmp/tree/ ./
+          rsync -a --exclude=.git --exclude=.github /tmp/tree/ ./
           git status --porcelain | head -100
-      - name: Commit restored files
+      - name: Commit and push restored files
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -29,6 +29,7 @@ jobs:
             echo "nothing to commit"
           else
             git commit -m "Import binary assets and JS bundle from v1.0.0 source archive"
+            git push
           fi
       - name: Verify restored content
         run: |
@@ -47,7 +48,8 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
-      - uses: android-actions/setup-android@v3
+      - name: Accept Android SDK licenses
+        run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses >/dev/null 2>&1 || true
       - name: Build debug APK from fresh checkout
         run: |
           chmod +x gradlew
