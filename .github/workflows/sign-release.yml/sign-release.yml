@@ -1,0 +1,46 @@
+name: sign-release
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-sign:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Decode release keystore
+        run: |
+          mkdir -p /tmp/sign
+          printf '%s' '${{ secrets.CARDWAKE_KEYSTORE_B64 }}' | base64 -d > /tmp/sign/cardwake.keystore
+          ls -la /tmp/sign/cardwake.keystore
+      - name: Build unsigned release APK
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleRelease --no-daemon
+          ls -la app/build/outputs/apk/release/
+      - name: Zipalign and sign with release key
+        run: |
+          BT=$(ls -d "$ANDROID_HOME/build-tools/"34* | sort -V | tail -1)
+          echo "build-tools: $BT"
+          mkdir -p out
+          "$BT/zipalign" -p -f 4 app/build/outputs/apk/release/app-release-unsigned.apk out/cardwake-otg-root-release.apk
+          "$BT/apksigner" sign --ks /tmp/sign/cardwake.keystore --ks-key-alias cardwake \
+            --ks-pass "pass:${{ secrets.CARDWAKE_KS_PASSWORD }}" --key-pass "pass:${{ secrets.CARDWAKE_KS_PASSWORD }}" \
+            --min-sdk-version 26 out/cardwake-otg-root-release.apk
+      - name: Verify signature and package
+        run: |
+          BT=$(ls -d "$ANDROID_HOME/build-tools/"34* | sort -V | tail -1)
+          "$BT/apksigner" verify --verbose --print-certs out/cardwake-otg-root-release.apk
+          "$BT/aapt" dump badging out/cardwake-otg-root-release.apk | head -6
+          sha256sum out/cardwake-otg-root-release.apk
+      - name: Upload signed APK to release v1.0.0
+        run: gh release upload v1.0.0 out/cardwake-otg-root-release.apk --clobber 
