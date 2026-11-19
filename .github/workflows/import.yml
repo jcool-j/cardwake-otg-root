@@ -1,0 +1,58 @@
+name: import-and-build-check
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  import:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download source ZIP from release v1.0.0
+        run: gh release download v1.0.0 --pattern cardwake-otg-root-source-v1.0.0.zip --dir /tmp/src --clobber
+      - name: Restore missing files into checkout
+        run: |
+          mkdir -p /tmp/tree
+          unzip -o -q /tmp/src/cardwake-otg-root-source-v1.0.0.zip -d /tmp/tree
+          rsync -a --exclude=.git /tmp/tree/ ./
+          git status --porcelain | head -100
+      - name: Commit restored files
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "nothing to commit"
+          else
+            git commit -m "Import binary assets and JS bundle from v1.0.0 source archive"
+          fi
+      - name: Verify restored content
+        run: |
+          echo "woff files: $(find . -name '*.woff*' | wc -l)"
+          sha256sum app/src/main/assets/www/assets/index-doWCnsd-.js
+          ls -la gradle/wrapper/
+
+  build:
+    needs: import
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+      - name: Build debug APK from fresh checkout
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon
+      - name: Verify APK exists
+        run: |
+          ls -la app/build/outputs/apk/debug/app-debug.apk
+          sha256sum app/build/outputs/apk/debug/app-debug.apk
