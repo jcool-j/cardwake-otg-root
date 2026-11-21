@@ -6,6 +6,7 @@ import (
 	"crypto/md5"
 	"crypto/rand"
 	"encoding/binary"
+	"fmt"
 	"io"
 	"os"
 	"os/exec"
@@ -245,5 +246,74 @@ func TestFakeDetect(t *testing.T) {
 	r, _ = fakeCapacityDev(e, noop, 32*MB, func(Progress) {}, &cancel)
 	if !r.Fake || r.Real != 8*MB {
 		t.Fatalf("drop fake: %+v", r)
+	}
+}
+
+type roDev struct{}
+
+func (roDev) ReadAt(p []byte, off int64) (int, error)  { return len(p), nil }
+func (roDev) WriteAt(p []byte, off int64) (int, error) { return 0, fmt.Errorf("write protected") }
+
+// a card that refuses writes must never be reported as having a real capacity
+func TestFakeWriteProtected(t *testing.T) {
+	var cancel atomic.Bool
+	r, err := fakeCapacityDev(roDev{}, func() error { return nil }, 16*MB, func(Progress) {}, &cancel)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r.Verdict != "writeerror" || r.Fake || r.Real != 0 || r.Claimed != 16*MB {
+		t.Fatalf("write-protected card: %+v", r)
+	}
+	if _, err := fakeCapacityDev(roDev{}, func() error { return nil }, 0, func(Progress) {}, &cancel); err == nil {
+		t.Fatal("size 0 must be an error, not a verdict")
+	}
+}
+
+// a medium that stops accepting writes half way is shorter than it claims
+func TestFakeShortMedium(t *testing.T) {
+	var cancel atomic.Bool
+	d := &shortDev{make([]byte, 8*MB)}
+	r, _ := fakeCapacityDev(d, func() error { return nil }, 32*MB, func(Progress) {}, &cancel)
+	if !r.Fake || r.Real != 8*MB || r.Claimed != 32*MB {
+		t.Fatalf("short medium: %+v", r)
+	}
+}
+
+type shortDev struct{ b []byte }
+
+func (d *shortDev) ReadAt(p []byte, off int64) (int, error) {
+	if off+int64(len(p)) > int64(len(d.b)) {
+		return 0, io.EOF
+	}
+	return copy(p, d.b[off:]), nil
+}
+func (d *shortDev) WriteAt(p []byte, off int64) (int, error) {
+	if off+int64(len(p)) > int64(len(d.b)) {
+		return 0, fmt.Errorf("no space")
+	}
+	return copy(d.b[off:], p), nil
+}
+
+func TestMakeImageNeverOverwrites(t *testing.T) {
+	dir := t.TempDir()
+	src := filepath.Join(dir, "src.bin")
+	os.WriteFile(src, make([]byte, 2*MB), 0o644)
+	s, err := OpenSource(src, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	out := filepath.Join(dir, "out.img")
+	os.WriteFile(out, []byte("precious earlier backup"), 0o644)
+	var cancel atomic.Bool
+	if err := MakeImage(s, out, nil, &cancel); err == nil {
+		t.Fatal("MakeImage overwrote an existing file")
+	}
+	if b, _ := os.ReadFile(out); string(b) != "precious earlier backup" {
+		t.Fatal("existing file was modified")
+	}
+	out2 := filepath.Join(dir, "new.img")
+	if err := MakeImage(s, out2, nil, &cancel); err != nil {
+		t.Fatal(err)
 	}
 }

@@ -13441,9 +13441,13 @@ async function runSmartDiagnose(src) {
 		const orig = await src.read(probeOff, 512);
 		const testPat = new Uint8Array(orig);
 		testPat[0] ^= 85;
-		await src.write(probeOff, testPat);
-		const readBack = await src.read(probeOff, 512);
-		await src.write(probeOff, orig);
+		let readBack;
+		try {
+			await src.write(probeOff, testPat);
+			readBack = await src.read(probeOff, 512);
+		} finally {
+			await src.write(probeOff, orig);
+		}
 		writeTest = readBack[0] === testPat[0] ? "ok" : "fail";
 	} catch {
 		writeTest = "fail";
@@ -13531,6 +13535,8 @@ async function runFakeCapacityTest(src, onProgress, signal) {
 	if (!src.write) throw new Error("Selected device or image is read-only. Fake capacity test writes deterministic blocks across the entire drive.");
 	let size = src.size;
 	let nblk = Math.floor(size / MB);
+	if (nblk === 0) throw new Error("Device is smaller than 1 MB - nothing to test.");
+	let writeFailedAt = -1;
 	const buf = new Uint8Array(MB);
 	const t0 = performance.now();
 	for (let i = 0; i < nblk; i++) {
@@ -13539,6 +13545,7 @@ async function runFakeCapacityTest(src, onProgress, signal) {
 		try {
 			await src.write(i * MB, buf);
 		} catch {
+			writeFailedAt = i;
 			nblk = i;
 			size = i * MB;
 			break;
@@ -13589,12 +13596,14 @@ async function runFakeCapacityTest(src, onProgress, signal) {
 		});
 		if (i % 4 === 0) await new Promise((r) => setTimeout(r, 0));
 	}
+	const wfail = writeFailedAt >= 0;
 	return {
 		claimed: src.size,
 		real: good * MB,
-		fake: bad > 0,
+		fake: bad > 0 || wfail,
 		mismatch: bad,
-		verdict: bad > 0 ? "fake" : "ok",
+		writeFailedAt,
+		verdict: wfail && good === 0 ? "writeerror" : bad > 0 || wfail ? "fake" : "ok",
 		firstBadBlock
 	};
 }
@@ -13780,6 +13789,7 @@ var DiagnoseTab = ({ lang, source, busy, onStartJob, onLog }) => {
 	};
 	const handleBench = () => {
 		if (!source) return;
+		if (!window.confirm(lang === "he" ? "מבחן המהירות כותב נתונים לכרטיס (ומשחזר אותם). להמשיך?" : "The benchmark writes test data to the card (and restores it). Continue?")) return;
 		onStartJob(t.runBench, async (signal) => {
 			onLog("info", lang === "he" ? "מודד קריאה רציפה ו-4K Random IOPS..." : "Benchmarking sequential & 4K random IOPS...");
 			const res = await runBenchmark(source, (partial) => setBenchRes((prev) => ({
@@ -18605,13 +18615,16 @@ var ToolsRootTab = ({ lang, source, rootInfo, busy, onStartJob, onLog }) => {
 	const [label, setLabel] = (0, import_react.useState)("CARDWAKE");
 	const [fullZero, setFullZero] = (0, import_react.useState)(false);
 	const [confirmFormat, setConfirmFormat] = (0, import_react.useState)("");
-	const [targetDev, setTargetDev] = (0, import_react.useState)(rootInfo?.disks[0]?.device || "/dev/block/sda");
+	const [targetDev, setTargetDev] = (0, import_react.useState)(rootInfo?.disks?.[0]?.device || "");
 	const [copiedId, setCopiedId] = (0, import_react.useState)(null);
 	const [downloadingApkZip, setDownloadingApkZip] = (0, import_react.useState)(false);
-	const rootCommands = buildRootCommands(targetDev, `${targetDev}1`, label || "CARDWAKE");
+	const partOf = (d) => /mmcblk|nvme/.test(d) ? `${d}p1` : `${d}1`;
+	const devOk = /^\/dev\/block\/(sd[b-z][0-9]*|mmcblk[1-9][0-9]*(p[0-9]+)?)$/.test(targetDev) && (!rootInfo?.disks?.length || rootInfo.disks.some((d) => d.device === targetDev));
+	const rootCommands = buildRootCommands(devOk ? targetDev : "/dev/block/<DEVICE>", devOk ? partOf(targetDev) : "/dev/block/<DEVICE>1", label || "CARDWAKE");
 	const execRootAction = async (action, extra) => {
 		const baseName = targetDev.split("/").pop() || "sda";
-		const partDev = `${targetDev}1`;
+		const partDev = partOf(targetDev);
+		if (!devOk) throw new Error(lang === "he" ? "בחר התקן שזוהה בסריקה (לא ניתן להשתמש בנתיב חופשי או בדיסק המערכת)." : "Pick a device found by the scan (free-form paths and the internal disk are refused).");
 		if (isAndroidApkBridge()) {
 			let cmd = "";
 			if (action === "unlock") cmd = `echo 0 > /sys/block/${baseName}/force_ro 2>/dev/null; blockdev --setrw ${targetDev}; blockdev --getro ${targetDev}`;
@@ -18746,8 +18759,8 @@ var ToolsRootTab = ({ lang, source, rootInfo, busy, onStartJob, onLog }) => {
 							children: lang === "he" ? "שחרר קריאה-בלבד" : "Unlock Read-Only"
 						}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
 							type: "button",
-							disabled: busy || !rootInfo?.canAccessBlockDevices,
-							onClick: () => onStartJob("Root fsck", async () => {
+							disabled: busy || !devOk || !rootInfo?.canAccessBlockDevices,
+							onClick: () => window.confirm(lang === "he" ? `להריץ fsck על ${targetDev}? התיקון משנה את הכרטיס. מומלץ לצלם Image קודם.` : `Run fsck on ${targetDev}? Repairs modify the card. Make an image first.`) && onStartJob("Root fsck", async () => {
 								onLog("ok", (await execRootAction("fsck")).stdout || "fsck completed");
 							}),
 							className: "min-h-[44px] inline-flex items-center justify-center gap-1.5 rounded-xl border border-slate-200 dark:border-slate-700 px-3 text-xs sm:text-sm font-medium text-slate-700 dark:text-slate-200 disabled:opacity-40",
@@ -18810,7 +18823,7 @@ var ToolsRootTab = ({ lang, source, rootInfo, busy, onStartJob, onLog }) => {
 						]
 					}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
 						type: "button",
-						disabled: busy || confirmFormat.trim() !== "FORMAT",
+						disabled: busy || !devOk || confirmFormat.trim() !== "FORMAT",
 						onClick: handleFormat,
 						className: "w-full min-h-[44px] rounded-xl bg-rose-600 text-white text-sm font-semibold transition hover:bg-rose-700 disabled:opacity-40",
 						children: t.formatBtn

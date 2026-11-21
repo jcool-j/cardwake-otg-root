@@ -591,8 +591,12 @@ func maxf(a, b float64) float64 {
 
 // MakeImage copies the whole source into a file (bad sectors zero-filled).
 func MakeImage(s *Source, outpath string, onProg func(Progress), cancel *atomic.Bool) error {
-	out, err := os.Create(outpath)
+	// O_EXCL: never overwrite an existing file (it may be an earlier backup)
+	out, err := os.OpenFile(outpath, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
 	if err != nil {
+		if os.IsExist(err) {
+			return fmt.Errorf("the file already exists - choose a new name (nothing was overwritten): %s", outpath)
+		}
 		return err
 	}
 	defer out.Close()
@@ -777,7 +781,12 @@ type rwAt interface {
 }
 
 func fakeCapacityDev(f rwAt, sync func() error, size int64, onProg func(Progress), cancel *atomic.Bool) (FakeResult, error) {
+	claimed := size
 	nblk := size / MB
+	if nblk == 0 {
+		return FakeResult{}, fmt.Errorf("the card size is unknown or too small to test")
+	}
+	writeFailed := int64(-1)
 	buf := make([]byte, MB)
 	rd := make([]byte, MB)
 	t0 := time.Now()
@@ -787,7 +796,8 @@ func fakeCapacityDev(f rwAt, sync func() error, size int64, onProg func(Progress
 		}
 		patternBlock(i, buf)
 		if _, err := f.WriteAt(buf, i*MB); err != nil {
-			// a write error means the real end of the medium
+			// a write error: either the card is write-protected (i == 0) or the medium really ends here
+			writeFailed = i
 			nblk = i
 			size = i * MB
 			break
@@ -795,6 +805,10 @@ func fakeCapacityDev(f rwAt, sync func() error, size int64, onProg func(Progress
 		onProg(Progress{Done: i * MB, Total: size * 2, Speed: float64(i*MB) / maxf(time.Since(t0).Seconds(), 0.01)})
 	}
 	sync()
+	if writeFailed == 0 {
+		// the very first write was refused: nothing was tested, so never report a capacity verdict
+		return FakeResult{Claimed: claimed, Verdict: "writeerror"}, nil
+	}
 	var good, bad int64
 	firstBad := int64(-1)
 	for i := int64(0); i < nblk; i++ {
@@ -820,8 +834,8 @@ func fakeCapacityDev(f rwAt, sync func() error, size int64, onProg func(Progress
 		onProg(Progress{Done: size + i*MB, Total: size * 2, Speed: float64(size+i*MB) / maxf(time.Since(t0).Seconds(), 0.01)})
 	}
 	_ = firstBad
-	res := FakeResult{Claimed: size, Real: good * MB, Mismatch: int(bad)}
-	if bad > 0 {
+	res := FakeResult{Claimed: claimed, Real: good * MB, Mismatch: int(bad)}
+	if bad > 0 || writeFailed > 0 {
 		res.Fake = true
 		res.Verdict = "fake"
 	} else {

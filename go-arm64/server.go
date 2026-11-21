@@ -24,7 +24,7 @@ var uiFS embed.FS
 
 const (
 	appName    = "Cardwake"
-	appVersion = "1.1.0"
+	appVersion = "1.1.1"
 )
 
 var (
@@ -343,7 +343,10 @@ func buildMux() *http.ServeMux {
 				}
 			}
 		} else if p := m.str("path"); p != "" {
-			target = p
+			// only ever open existing folders - never launch an arbitrary file
+			if st, err := os.Stat(p); err == nil && st.IsDir() {
+				target = p
+			}
 		}
 		if target != "" {
 			openPath(target)

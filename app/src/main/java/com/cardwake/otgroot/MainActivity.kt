@@ -11,7 +11,15 @@ import android.hardware.usb.UsbManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.content.ContentValues
+import android.os.Environment
+import android.provider.MediaStore
 import android.util.Base64
+import android.webkit.DownloadListener
+import android.widget.Toast
+import java.io.File
+import java.util.concurrent.TimeUnit
+import kotlin.concurrent.thread
 import android.webkit.JavascriptInterface
 import android.webkit.ValueCallback
 import android.webkit.WebChromeClient
@@ -69,13 +77,46 @@ class MainActivity : AppCompatActivity() {
         webView = WebView(this)
         webView.settings.javaScriptEnabled = true
         webView.settings.domStorageEnabled = true
-        webView.settings.allowFileAccess = true
+        webView.settings.allowFileAccess = false
+        webView.settings.allowContentAccess = false
+        webView.settings.javaScriptCanOpenWindowsAutomatically = false
 
         webView.webViewClient = object : WebViewClient() {
             override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): WebResourceResponse? {
                 return assetLoader.shouldInterceptRequest(request.url)
             }
+
+            // Keep the WebView (and its root bridge) locked to our own offline origin.
+            override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
+                val u = request.url
+                if (u.scheme == "https" && u.host == "appassets.androidplatform.net") return false
+                if (u.scheme == "blob" || u.scheme == "data") return false
+                return true
+            }
         }
+
+        webView.setDownloadListener(DownloadListener { url, _, contentDisposition, mimeType, _ ->
+            val name = Uri.decode(
+                Regex("filename\\*?=(?:UTF-8'')?\"?([^\";]+)").find(contentDisposition ?: "")?.groupValues?.get(1)
+                    ?: "cardwake-export.bin"
+            )
+            val mime = mimeType ?: "application/octet-stream"
+            when {
+                url.startsWith("data:") -> {
+                    val comma = url.indexOf(',')
+                    val isB64 = comma > 0 && url.substring(0, comma).endsWith(";base64")
+                    val payload = url.substring(comma + 1)
+                    val bytes = if (isB64) Base64.decode(payload, Base64.DEFAULT) else Uri.decode(payload).toByteArray()
+                    saveToDownloads(name, mime, bytes)
+                }
+                url.startsWith("blob:") -> webView.evaluateJavascript(
+                    "(async()=>{const b=await (await fetch('" + url + "')).blob();" +
+                        "const r=new FileReader();r.onloadend=()=>CardwakeAndroid.saveBase64File(" +
+                        JSONObject.quote(name) + "," + JSONObject.quote(mime) + ",String(r.result).split(',')[1]||'');" +
+                        "r.readAsDataURL(b);})()", null
+                )
+            }
+        })
 
         webView.webChromeClient = object : WebChromeClient() {
             override fun onShowFileChooser(
@@ -118,15 +159,26 @@ class MainActivity : AppCompatActivity() {
         @JavascriptInterface
         fun execRoot(cmd: String): String {
             return try {
-                val p = Runtime.getRuntime().exec(arrayOf("su", "-c", cmd))
-                val stdout = p.inputStream.bufferedReader().readText()
-                val stderr = p.errorStream.bufferedReader().readText()
-                val code = p.waitFor()
+                val p = ProcessBuilder("su", "-c", cmd).start()
+                p.outputStream.close()
+                // Drain stderr on its own thread so neither pipe can fill up and deadlock the process.
+                val errBuf = StringBuilder()
+                val errT = thread(start = true) { errBuf.append(p.errorStream.bufferedReader().readText()) }
+                val outT = StringBuilder()
+                val outR = thread(start = true) { outT.append(p.inputStream.bufferedReader().readText()) }
+                val finished = p.waitFor(120, TimeUnit.SECONDS)
+                if (!finished) {
+                    p.destroyForcibly()
+                    errT.join(1000); outR.join(1000)
+                    return JSONObject().put("ok", false).put("error", "Timed out after 120s").toString()
+                }
+                errT.join(5000); outR.join(5000)
+                val code = p.exitValue()
                 JSONObject().apply {
                     put("ok", code == 0)
                     put("code", code)
-                    put("stdout", stdout)
-                    put("stderr", stderr)
+                    put("stdout", outT.toString())
+                    put("stderr", errBuf.toString())
                 }.toString()
             } catch (e: Exception) {
                 JSONObject().apply {
@@ -138,26 +190,12 @@ class MainActivity : AppCompatActivity() {
 
         @JavascriptInterface
         fun scanBlockDevices(): String {
-            val script = """
-                for d in /sys/block/sd* /sys/block/mmcblk*; do
-                  [ -e "${'$'}d" ] || continue
-                  b=$(basename "${'$'}d")
-                  [ "${'$'}b" = "mmcblk0" ] && continue
-                  rem=$(cat "${'$'}d/removable" 2>/dev/null || echo 0)
-                  ro=$(cat "${'$'}d/ro" 2>/dev/null || echo 0)
-                  sec=$(cat "${'$'}d/size" 2>/dev/null || echo 0)
-                  bytes=$((sec * 512))
-                  model=$(cat "${'$'}d/device/model" "${'$'}d/device/name" 2>/dev/null | tr '
-' ' ')
-                  cid=$(cat "${'$'}d/device/cid" 2>/dev/null || echo "")
-                  csd=$(cat "${'$'}d/device/csd" 2>/dev/null || echo "")
-                  serial=$(cat "${'$'}d/device/serial" 2>/dev/null || echo "")
-                  echo "${'$'}b|${'$'}bytes|${'$'}ro|${'$'}rem|${'$'}model|${'$'}cid|${'$'}csd|${'$'}serial"
-                done
-            """.trimIndent()
+            // Script lives in assets/ so the shell's $ variables are not mangled by Kotlin string templates.
+            val script = assets.open("scan_block_devices.sh").bufferedReader().readText()
             val arr = JSONArray()
             try {
                 val p = Runtime.getRuntime().exec(arrayOf("su", "-c", script))
+                p.outputStream.close()
                 val lines = p.inputStream.bufferedReader().readLines()
                 p.waitFor()
                 for (line in lines) {
@@ -173,6 +211,7 @@ class MainActivity : AppCompatActivity() {
                         put("name", model)
                         put("size", size)
                         put("readonly", ro)
+                        put("removable", parts[3].trim() == "1")
                         put("bus", if (name.startsWith("mmcblk")) "SD/MMC" else "USB-OTG")
                         put("cid", parts.getOrNull(5)?.trim().orEmpty())
                         put("csd", parts.getOrNull(6)?.trim().orEmpty())
@@ -187,13 +226,28 @@ class MainActivity : AppCompatActivity() {
         fun readBlockBase64(devicePath: String, offset: Long, length: Int): String {
             if (!isSafeExternalBlock(devicePath) || offset < 0 || length <= 0 || length > 1048576) return ""
             return try {
-                val cmd = "dd if=$devicePath bs=512 skip=${offset / 512} count=${(length + 511) / 512} 2>/dev/null"
+                // dd works in whole sectors: read from the sector boundary, then slice off the head padding.
+                val pad = (offset % 512).toInt()
+                val skip = offset / 512
+                val count = (pad + length + 511) / 512
+                val cmd = "dd if=$devicePath bs=512 skip=$skip count=$count 2>/dev/null"
                 val p = Runtime.getRuntime().exec(arrayOf("su", "-c", cmd))
+                p.outputStream.close()
                 val bytes = p.inputStream.readBytes()
                 p.waitFor()
-                if (bytes.isEmpty()) "" else Base64.encodeToString(bytes, 0, minOf(bytes.size, length), Base64.NO_WRAP)
+                if (bytes.size <= pad) "" else Base64.encodeToString(bytes, pad, minOf(bytes.size - pad, length), Base64.NO_WRAP)
             } catch (_: Exception) {
                 ""
+            }
+        }
+
+        @JavascriptInterface
+        fun saveBase64File(name: String, mime: String, b64: String): String {
+            return try {
+                val ok = saveToDownloads(name, mime, Base64.decode(b64, Base64.DEFAULT))
+                JSONObject().put("ok", ok).toString()
+            } catch (e: Exception) {
+                JSONObject().put("ok", false).put("error", e.message ?: "save failed").toString()
             }
         }
 
@@ -235,16 +289,40 @@ class MainActivity : AppCompatActivity() {
         @JavascriptInterface
         fun requestOtgPermission(deviceName: String) {
             val dev: UsbDevice = usbManager.deviceList[deviceName] ?: return
+            // The system fills in EXTRA_PERMISSION_GRANTED, so on Android 12+ the PendingIntent must be mutable.
+            val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) PendingIntent.FLAG_MUTABLE else 0
             val pi = PendingIntent.getBroadcast(
-                this@MainActivity, 0, Intent(ACTION_USB_PERMISSION),
-                PendingIntent.FLAG_IMMUTABLE
+                this@MainActivity, 0, Intent(ACTION_USB_PERMISSION).setPackage(packageName), flags
             )
             usbManager.requestPermission(dev, pi)
         }
     }
 
+    private fun saveToDownloads(name: String, mime: String, bytes: ByteArray): Boolean {
+        val safe = name.replace(Regex("[^A-Za-z0-9._ -]"), "_").ifEmpty { "cardwake-export.bin" }
+        return try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                val cv = ContentValues().apply {
+                    put(MediaStore.Downloads.DISPLAY_NAME, safe)
+                    put(MediaStore.Downloads.MIME_TYPE, mime)
+                    put(MediaStore.Downloads.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS)
+                }
+                val uri = contentResolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, cv) ?: return false
+                contentResolver.openOutputStream(uri)?.use { it.write(bytes) } ?: return false
+            } else {
+                val dir = getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS) ?: filesDir
+                File(dir, safe).writeBytes(bytes)
+            }
+            runOnUiThread { Toast.makeText(this, "Saved to Downloads: $safe", Toast.LENGTH_LONG).show() }
+            true
+        } catch (e: Exception) {
+            runOnUiThread { Toast.makeText(this, "Save failed: ${e.message}", Toast.LENGTH_LONG).show() }
+            false
+        }
+    }
+
     override fun onDestroy() {
-        unregisterReceiver(usbReceiver)
+        try { unregisterReceiver(usbReceiver) } catch (_: IllegalArgumentException) {}
         super.onDestroy()
     }
 }

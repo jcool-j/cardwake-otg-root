@@ -694,7 +694,9 @@ func jobFake(j *Job, d Disk) error {
 	j.set("claimed", r.Claimed)
 	j.set("real", r.Real)
 	j.set("mismatch", r.Mismatch)
-	if r.Fake {
+	if r.Verdict == "writeerror" {
+		j.say("fail", "The card refused the very first write - it is write-protected or locked. The capacity could not be tested.")
+	} else if r.Fake {
 		j.say("fail", fmt.Sprintf("Claimed %s but only %s is real.", fmtBytes(r.Claimed), fmtBytes(r.Real)))
 	} else {
 		j.say("ok", "Every block read back correctly. The capacity is real.")

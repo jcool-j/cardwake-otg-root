@@ -1,0 +1,1031 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Cardwake</title>
+<style>
+:root{
+  --bg:#05070c; --panel:rgba(255,255,255,.045); --panel2:rgba(255,255,255,.08); --line:rgba(255,255,255,.09);
+  --txt:#eef2ff; --mut:#8e98b8; --a1:#5eead4; --a2:#8b5cf6; --a3:#38bdf8;
+  --ok:#34d399; --warn:#fbbf24; --bad:#fb7185; --r:18px;
+  --grad:linear-gradient(135deg,var(--a1),var(--a3) 45%,var(--a2));
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{
+  background:var(--bg);color:var(--txt);
+  font-family:"Segoe UI Variable Text","Segoe UI",system-ui,-apple-system,Arial,sans-serif;
+  font-size:15px;line-height:1.5;overflow-x:hidden;-webkit-font-smoothing:antialiased;
+}
+button,input,select{font:inherit;color:inherit}
+button{cursor:pointer;border:0;background:none}
+svg.i{width:1em;height:1em;stroke:currentColor;fill:none;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round;flex:none}
+
+/* aurora background */
+.bg{position:fixed;inset:0;z-index:0;overflow:hidden;pointer-events:none}
+.bg i{position:absolute;border-radius:50%;filter:blur(90px);opacity:.38;animation:drift 26s ease-in-out infinite alternate}
+.bg i:nth-child(1){width:620px;height:620px;background:#0ea5a4;top:-220px;inset-inline-start:-120px}
+.bg i:nth-child(2){width:560px;height:560px;background:#6d28d9;bottom:-240px;inset-inline-end:-100px;animation-duration:32s}
+.bg i:nth-child(3){width:420px;height:420px;background:#0369a1;top:38%;inset-inline-start:42%;opacity:.22;animation-duration:38s}
+@keyframes drift{to{transform:translate(70px,50px) scale(1.12)}}
+.bg::after{content:"";position:absolute;inset:0;background:
+  radial-gradient(ellipse at 50% 0%,transparent 40%,var(--bg) 100%),
+  repeating-linear-gradient(0deg,rgba(255,255,255,.012) 0 1px,transparent 1px 3px)}
+
+.app{position:relative;z-index:1;max-width:1080px;margin:0 auto;padding:22px 28px 40px;min-height:100%;display:flex;flex-direction:column}
+
+/* header */
+header{display:flex;align-items:center;gap:14px;padding:6px 0 22px}
+.logo{width:44px;height:44px;filter:drop-shadow(0 6px 22px rgba(94,234,212,.35))}
+.brand b{display:block;font-size:22px;letter-spacing:.3px;font-weight:700;background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent}
+.brand span{display:block;color:var(--mut);font-size:12.5px;margin-top:-2px}
+.sp{flex:1}
+.pill{display:inline-flex;align-items:center;gap:7px;padding:6px 12px;border-radius:99px;background:var(--panel);border:1px solid var(--line);font-size:12.5px;color:var(--mut)}
+.pill .dot{width:7px;height:7px;border-radius:50%;background:var(--ok);box-shadow:0 0 10px var(--ok)}
+.pill.warn .dot{background:var(--warn);box-shadow:0 0 10px var(--warn)}
+.pill.demo .dot{background:var(--a2);box-shadow:0 0 10px var(--a2)}
+.iconbtn{display:inline-flex;align-items:center;gap:8px;padding:8px 14px;border-radius:12px;background:var(--panel);border:1px solid var(--line);color:var(--txt);font-size:13.5px;transition:.2s}
+.iconbtn:hover{background:var(--panel2);border-color:rgba(255,255,255,.18)}
+.iconbtn svg{font-size:16px}
+
+/* views */
+.view{display:none;animation:rise .45s cubic-bezier(.2,.8,.2,1)}
+.view.on{display:block}
+@keyframes rise{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+h1{font-size:30px;font-weight:700;letter-spacing:-.2px}
+.sub{color:var(--mut);margin-top:6px;max-width:640px}
+.row{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.toolbar{margin:26px 0 16px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.toggle{display:inline-flex;align-items:center;gap:9px;color:var(--mut);font-size:13.5px;cursor:pointer;user-select:none}
+.toggle input{appearance:none;width:34px;height:20px;border-radius:99px;background:var(--panel2);border:1px solid var(--line);position:relative;transition:.2s;cursor:pointer}
+.toggle input::after{content:"";position:absolute;top:2px;inset-inline-start:2px;width:14px;height:14px;border-radius:50%;background:#cbd5e1;transition:.2s}
+.toggle input:checked{background:var(--a1);border-color:transparent}
+.toggle input:checked::after{inset-inline-start:16px;background:#06222a}
+.link{color:var(--a3);font-size:13.5px;text-decoration:none;cursor:pointer;display:inline-flex;gap:7px;align-items:center}
+.link:hover{text-decoration:underline}
+
+/* glass card */
+.glass{background:linear-gradient(180deg,rgba(255,255,255,.065),rgba(255,255,255,.03));border:1px solid var(--line);border-radius:var(--r);backdrop-filter:blur(14px);box-shadow:0 10px 40px rgba(0,0,0,.35),inset 0 1px 0 rgba(255,255,255,.06)}
+
+/* disk grid */
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(310px,1fr));gap:16px}
+.disk{position:relative;text-align:start;padding:20px;display:flex;flex-direction:column;gap:14px;overflow:hidden;transition:transform .25s,border-color .25s;animation:rise .5s both}
+.disk::before{content:"";position:absolute;inset:0;background:radial-gradient(260px circle at var(--mx,50%) var(--my,0%),rgba(94,234,212,.16),transparent 60%);opacity:0;transition:.3s}
+.disk:hover{transform:translateY(-3px);border-color:rgba(94,234,212,.4)}
+.disk:hover::before{opacity:1}
+.dtop{display:flex;gap:14px;align-items:center;position:relative}
+.dicon{width:52px;height:52px;border-radius:15px;display:grid;place-items:center;background:var(--grad);color:#04141a;font-size:26px;box-shadow:0 8px 24px rgba(56,189,248,.28)}
+.dname{font-weight:650;font-size:16.5px}
+.dmeta{color:var(--mut);font-size:13px;margin-top:2px}
+.chips{display:flex;gap:7px;flex-wrap:wrap;position:relative}
+.chip{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:99px;font-size:12px;font-weight:600;border:1px solid transparent}
+.chip svg{font-size:13px}
+.chip.bad{background:rgba(251,113,133,.13);color:#fda4af;border-color:rgba(251,113,133,.3)}
+.chip.warn{background:rgba(251,191,36,.12);color:#fcd34d;border-color:rgba(251,191,36,.28)}
+.chip.ok{background:rgba(52,211,153,.12);color:#6ee7b7;border-color:rgba(52,211,153,.28)}
+.chip.mut{background:var(--panel);color:var(--mut);border-color:var(--line)}
+.bar{height:6px;border-radius:9px;background:rgba(255,255,255,.07);overflow:hidden;position:relative}
+.bar i{display:block;height:100%;background:var(--grad);border-radius:9px}
+
+.empty{padding:54px 28px;text-align:center}
+.empty .big{width:84px;height:84px;margin:0 auto 18px;border-radius:26px;display:grid;place-items:center;font-size:40px;color:var(--a1);background:rgba(94,234,212,.08);border:1px dashed rgba(94,234,212,.4);animation:pulse 2.6s ease-in-out infinite}
+@keyframes pulse{50%{box-shadow:0 0 0 14px rgba(94,234,212,.06)}}
+.empty h3{font-size:19px;margin-bottom:6px}
+.empty ul{list-style:none;color:var(--mut);display:inline-block;text-align:start;margin-top:10px;font-size:13.5px}
+.empty li::before{content:"•";color:var(--a1);margin-inline-end:9px}
+
+/* disk detail */
+.back{display:inline-flex;gap:8px;align-items:center;color:var(--mut);font-size:14px;padding:6px 2px;margin-bottom:12px;transition:.2s}
+.back:hover{color:var(--txt)}
+[dir=rtl] .back svg{transform:scaleX(-1)}
+.dhead{display:flex;gap:18px;align-items:center;padding:22px;margin-bottom:16px}
+.dhead .dicon{width:66px;height:66px;font-size:32px;border-radius:19px}
+.dhead h1{font-size:25px}
+.diag{display:flex;gap:14px;align-items:flex-start;padding:16px 18px;border-radius:14px;margin-bottom:22px;border:1px solid var(--line);background:var(--panel)}
+.diag .di{width:38px;height:38px;border-radius:11px;display:grid;place-items:center;font-size:20px;flex:none}
+.diag.bad{background:rgba(251,113,133,.07);border-color:rgba(251,113,133,.3)}.diag.bad .di{background:rgba(251,113,133,.18);color:#fda4af}
+.diag.warn{background:rgba(251,191,36,.07);border-color:rgba(251,191,36,.28)}.diag.warn .di{background:rgba(251,191,36,.16);color:#fcd34d}
+.diag.ok{background:rgba(52,211,153,.07);border-color:rgba(52,211,153,.26)}.diag.ok .di{background:rgba(52,211,153,.16);color:#6ee7b7}
+.diag b{display:block;margin-bottom:2px}.diag span{color:var(--mut);font-size:13.5px}
+.actions{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px}
+.act{position:relative;text-align:start;padding:18px;display:flex;gap:14px;align-items:flex-start;transition:.25s;overflow:hidden}
+.act:hover:not(:disabled){transform:translateY(-3px);border-color:rgba(139,92,246,.55);box-shadow:0 14px 40px rgba(109,40,217,.22)}
+.act:disabled{opacity:.42;cursor:not-allowed}
+.act .ai{width:46px;height:46px;border-radius:14px;display:grid;place-items:center;font-size:23px;background:rgba(255,255,255,.07);color:var(--a1);flex:none;transition:.25s}
+.act:hover:not(:disabled) .ai{background:var(--grad);color:#04141a}
+.act b{display:block;font-size:16px;margin-bottom:3px}
+.act span{color:var(--mut);font-size:13.2px;display:block}
+.act.danger .ai{color:var(--bad)}
+.act.rec{border-color:rgba(94,234,212,.55);box-shadow:0 0 0 1px rgba(94,234,212,.25),0 12px 40px rgba(94,234,212,.12)}
+.act .badge,.badge{position:absolute;top:12px;inset-inline-end:12px;display:inline-block;font-size:11px;font-weight:700;padding:3px 9px;border-radius:99px;background:var(--grad);color:#04141a;letter-spacing:.3px}
+
+/* sheet / modal */
+.scrim{position:fixed;inset:0;z-index:20;background:rgba(3,5,10,.66);backdrop-filter:blur(6px);display:none;align-items:center;justify-content:center;padding:20px}
+.scrim.on{display:flex;animation:fade .25s}
+@keyframes fade{from{opacity:0}}
+.sheet{width:min(560px,100%);padding:26px;animation:pop .35s cubic-bezier(.2,.9,.3,1.2)}
+@keyframes pop{from{opacity:0;transform:scale(.94) translateY(10px)}}
+.sheet h2{font-size:21px;margin-bottom:4px}
+.sheet p.d{color:var(--mut);font-size:13.5px;margin-bottom:18px}
+.lbl{display:block;font-size:12.5px;color:var(--mut);margin:16px 0 8px;font-weight:600;letter-spacing:.2px}
+.types{display:flex;gap:8px;flex-wrap:wrap}
+.tchip{display:inline-flex;align-items:center;gap:8px;padding:9px 14px;border-radius:12px;border:1px solid var(--line);background:var(--panel);color:var(--mut);font-size:13.5px;transition:.2s;user-select:none}
+.tchip svg{font-size:16px}
+.tchip.on{color:#04141a;background:var(--grad);border-color:transparent;font-weight:650}
+.field{display:flex;gap:8px}
+input[type=text]{flex:1;min-width:0;padding:11px 14px;border-radius:12px;background:rgba(0,0,0,.28);border:1px solid var(--line);outline:none;transition:.2s;direction:ltr;text-align:start}
+input[type=text]:focus{border-color:var(--a1);box-shadow:0 0 0 3px rgba(94,234,212,.14)}
+.seg{display:inline-flex;background:rgba(0,0,0,.28);border:1px solid var(--line);border-radius:12px;padding:3px}
+.seg button{padding:7px 16px;border-radius:9px;color:var(--mut);font-size:13.5px;transition:.2s}
+.seg button.on{background:var(--panel2);color:var(--txt)}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:9px;padding:12px 22px;border-radius:13px;font-weight:650;transition:.2s;font-size:14.5px}
+.btn.pri{background:var(--grad);color:#04141a;box-shadow:0 8px 26px rgba(56,189,248,.3)}
+.btn.pri:hover:not(:disabled){transform:translateY(-1px);filter:brightness(1.08)}
+.btn.ghost{background:var(--panel);border:1px solid var(--line)}
+.btn.ghost:hover{background:var(--panel2)}
+.btn.red{background:linear-gradient(135deg,#fb7185,#e11d48);color:#fff;box-shadow:0 8px 26px rgba(225,29,72,.3)}
+.btn:disabled{opacity:.4;cursor:not-allowed;transform:none!important;filter:none!important}
+.btns{display:flex;gap:10px;justify-content:flex-end;margin-top:24px;flex-wrap:wrap}
+.warnbox{display:flex;gap:12px;padding:13px 15px;border-radius:13px;background:rgba(251,113,133,.09);border:1px solid rgba(251,113,133,.3);color:#fecdd3;font-size:13.5px;margin-top:6px}
+.warnbox svg{font-size:20px;flex:none;color:var(--bad);margin-top:2px}
+
+/* job */
+.jhead{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:18px}
+.jhead h1{font-size:25px}
+.status{display:inline-flex;align-items:center;gap:8px;padding:5px 13px;border-radius:99px;font-size:12.5px;font-weight:700;background:var(--panel);border:1px solid var(--line)}
+.status.running{color:var(--a1)}.status.done{color:var(--ok)}.status.error{color:var(--bad)}.status.cancelled{color:var(--warn)}
+.status .sd{width:8px;height:8px;border-radius:50%;background:currentColor}
+.status.running .sd{animation:blink 1.1s infinite}
+@keyframes blink{50%{opacity:.25}}
+.jmain{display:grid;grid-template-columns:300px 1fr;gap:18px;align-items:start}
+@media(max-width:860px){.jmain{grid-template-columns:1fr}}
+.ringbox{padding:26px 20px;display:flex;flex-direction:column;align-items:center;gap:14px}
+.ring{position:relative;width:210px;height:210px}
+.ring svg{width:100%;height:100%;transform:rotate(-90deg)}
+.ring .trk{stroke:rgba(255,255,255,.07)}
+.ring .val{stroke:url(#rg);stroke-linecap:round;transition:stroke-dashoffset .5s ease;filter:drop-shadow(0 0 9px rgba(94,234,212,.55))}
+.ring.running .val{animation:glow 2.4s ease-in-out infinite}
+@keyframes glow{50%{filter:drop-shadow(0 0 16px rgba(139,92,246,.8))}}
+.ring.done .val{stroke:var(--ok);filter:drop-shadow(0 0 12px rgba(52,211,153,.6))}
+.ring .mid{position:absolute;inset:0;display:grid;place-content:center;text-align:center}
+.ring .pct{font-size:44px;font-weight:700;letter-spacing:-1px;line-height:1}
+.ring .pct small{font-size:20px;color:var(--mut);font-weight:600}
+.ring .cap{color:var(--mut);font-size:12.5px;margin-top:6px}
+.stats{display:grid;grid-template-columns:1fr 1fr;gap:10px;width:100%}
+.stat{padding:11px 13px;border-radius:13px;background:rgba(0,0,0,.22);border:1px solid var(--line)}
+.stat small{display:block;color:var(--mut);font-size:11.5px;font-weight:600;letter-spacing:.3px}
+.stat b{font-size:19px;font-variant-numeric:tabular-nums}
+.stat.bad b{color:var(--bad)}
+.panel{padding:20px}
+.panel h3{font-size:14px;color:var(--mut);font-weight:650;margin-bottom:12px;letter-spacing:.3px}
+.counts{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:18px;min-height:30px}
+.cnt{padding:5px 11px;border-radius:10px;background:var(--panel);border:1px solid var(--line);font-size:12.5px;display:inline-flex;gap:8px;align-items:center}
+.cnt b{color:var(--a1);font-variant-numeric:tabular-nums}
+.gal{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:9px;max-height:330px;overflow:auto;padding:2px}
+.gal::-webkit-scrollbar,.log::-webkit-scrollbar{width:8px}.gal::-webkit-scrollbar-thumb,.log::-webkit-scrollbar-thumb{background:rgba(255,255,255,.14);border-radius:9px}
+.th{aspect-ratio:1;border-radius:11px;overflow:hidden;background:rgba(0,0,0,.3);border:1px solid var(--line);display:grid;place-items:center;color:var(--mut);font-size:12px;font-weight:700;text-transform:uppercase;position:relative;cursor:pointer;animation:pop .4s both;transition:.2s}
+.th:hover{border-color:var(--a1);transform:scale(1.04)}
+.th img{width:100%;height:100%;object-fit:cover;display:block}
+.th.part::after{content:"!";position:absolute;top:5px;inset-inline-end:5px;width:17px;height:17px;border-radius:50%;background:var(--warn);color:#2b1d00;font-size:11px;display:grid;place-items:center}
+.galempty{color:var(--mut);font-size:13.5px;padding:26px 0;text-align:center}
+
+.steps{list-style:none;display:flex;flex-direction:column;gap:2px}
+.steps li{display:flex;align-items:center;gap:13px;padding:10px 8px;border-radius:11px;color:var(--mut);transition:.3s}
+.steps li .sn{width:28px;height:28px;border-radius:50%;display:grid;place-items:center;border:1.5px solid var(--line);font-size:13px;flex:none}
+.steps li.cur{color:var(--txt);background:rgba(255,255,255,.04)}
+.steps li.cur .sn{border-color:var(--a1);border-top-color:transparent;animation:spin 1s linear infinite}
+.steps li.done{color:var(--txt)}
+.steps li.done .sn{background:var(--ok);border-color:var(--ok);color:#04231a}
+@keyframes spin{to{transform:rotate(360deg)}}
+.log{max-height:230px;overflow:auto;font-family:"Cascadia Mono",Consolas,monospace;font-size:12.3px;line-height:1.65;direction:ltr;text-align:start;background:rgba(0,0,0,.35);border:1px solid var(--line);border-radius:12px;padding:11px 14px}
+.log div{white-space:pre-wrap;word-break:break-word}
+.log .ok{color:#6ee7b7}.log .warn{color:#fcd34d}.log .fail{color:#fda4af}.log .info{color:#a5b0cf}
+details.lg{margin-top:16px}
+details.lg summary{cursor:pointer;color:var(--mut);font-size:13px;margin-bottom:10px;list-style:none;display:inline-flex;gap:8px;align-items:center}
+details.lg summary::-webkit-details-marker{display:none}
+
+.verdict{display:flex;gap:16px;padding:20px;border-radius:16px;margin-top:16px;border:1px solid var(--line);animation:rise .5s}
+.verdict .vi{width:50px;height:50px;border-radius:15px;display:grid;place-items:center;font-size:26px;flex:none}
+.verdict.ok{background:rgba(52,211,153,.08);border-color:rgba(52,211,153,.35)}.verdict.ok .vi{background:rgba(52,211,153,.2);color:#6ee7b7}
+.verdict.bad{background:rgba(251,113,133,.07);border-color:rgba(251,113,133,.35)}.verdict.bad .vi{background:rgba(251,113,133,.2);color:#fda4af}
+.verdict.warn{background:rgba(251,191,36,.07);border-color:rgba(251,191,36,.32)}.verdict.warn .vi{background:rgba(251,191,36,.18);color:#fcd34d}
+.verdict h3{font-size:18px;margin-bottom:4px}
+.panel .verdict h3,.glass .verdict h3{color:var(--txt);letter-spacing:0}
+.verdict p{color:#c4cbe3;font-size:14px}
+.verdict ul{margin:10px 0 0;padding-inline-start:20px;color:#c4cbe3;font-size:13.8px;display:flex;flex-direction:column;gap:6px}
+.verdict .btns{justify-content:flex-start;margin-top:16px}
+
+.toast{position:fixed;bottom:26px;inset-inline:0;margin:auto;width:max-content;max-width:min(560px,92vw);z-index:40;padding:13px 20px;border-radius:14px;background:#1b1020;border:1px solid rgba(251,113,133,.5);color:#fecdd3;box-shadow:0 14px 40px rgba(0,0,0,.5);display:none;font-size:14px}
+.toast.on{display:block;animation:rise .3s}
+
+.sect{margin:26px 2px 12px;display:flex;align-items:center;gap:12px;color:var(--mut);font-size:12.5px;font-weight:700;letter-spacing:.9px;text-transform:uppercase}
+.sect::after{content:"";flex:1;height:1px;background:var(--line)}
+.acts{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:12px}
+.acts .act{padding:15px;gap:12px}
+.acts .act .ai{width:40px;height:40px;font-size:20px;border-radius:12px}
+.acts .act b{font-size:14.5px}.acts .act span{font-size:12.6px}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:9px 18px;font-size:13.5px}
+.kv dt{color:var(--mut)}.kv dd{font-variant-numeric:tabular-nums;word-break:break-all;direction:ltr;text-align:start}
+.map{display:block;width:100%;height:auto;border-radius:12px;background:rgba(0,0,0,.3);border:1px solid var(--line)}
+.legend{display:flex;gap:16px;flex-wrap:wrap;margin-top:10px;color:var(--mut);font-size:12.5px}
+.legend i{display:inline-block;width:11px;height:11px;border-radius:3px;margin-inline-end:6px;vertical-align:-1px}
+.bars{display:flex;flex-direction:column;gap:16px}
+.brow small{display:flex;justify-content:space-between;color:var(--mut);font-size:13px;margin-bottom:6px}
+.brow small b{color:var(--txt);font-size:16px;font-variant-numeric:tabular-nums}
+.brow .bar{height:10px}
+.badges{display:flex;gap:9px;flex-wrap:wrap;margin-top:6px}
+.badge2{padding:6px 14px;border-radius:11px;font-weight:700;font-size:13.5px;background:var(--grad);color:#04141a}
+.badge2.no{background:var(--panel);color:var(--mut);border:1px solid var(--line)}
+.sw{display:block;margin:14px auto 4px;width:min(300px,100%)}
+.tbl{width:100%;border-collapse:collapse;font-size:13.5px}
+.tbl th{color:var(--mut);font-weight:600;font-size:12px;text-align:start;padding:8px 8px;border-bottom:1px solid var(--line)}
+.tbl td{padding:10px 8px;border-bottom:1px solid rgba(255,255,255,.05);vertical-align:middle}
+.tbl .mini{padding:5px 10px;border-radius:9px;background:var(--panel2);border:1px solid var(--line);font-size:12px;margin-inline-end:5px}
+.tbl .mini:hover{border-color:var(--a1)}.tbl .mini.red:hover{border-color:var(--bad);color:#fda4af}
+.sheet.wide{width:min(780px,100%);max-height:92vh;overflow:auto}
+.chk{display:flex;gap:10px;align-items:flex-start;margin-top:16px;color:#fecdd3;font-size:13.5px;cursor:pointer}
+.chk input{margin-top:3px;accent-color:#fb7185;width:16px;height:16px}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+select{padding:11px 12px;border-radius:12px;background:rgba(0,0,0,.28);border:1px solid var(--line);outline:none;width:100%}
+select option{background:#111827}
+input[type=password]{flex:1;min-width:0;padding:11px 14px;border-radius:12px;background:rgba(0,0,0,.28);border:1px solid var(--line);outline:none;direction:ltr;text-align:start}
+input[type=password]:focus{border-color:var(--a1);box-shadow:0 0 0 3px rgba(94,234,212,.14)}
+.note{color:var(--mut);font-size:12.8px;margin-top:10px}
+.tools{margin-top:34px}
+footer{margin-top:auto;padding-top:34px;text-align:center;color:#5d6685;font-size:12px}
+</style>
+</head>
+<body>
+<div class="bg"><i></i><i></i><i></i></div>
+<svg width="0" height="0" style="position:absolute"><defs>
+  <linearGradient id="rg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#5eead4"/><stop offset=".55" stop-color="#38bdf8"/><stop offset="1" stop-color="#8b5cf6"/></linearGradient>
+</defs></svg>
+
+<div class="app">
+  <header>
+    <svg class="logo" viewBox="0 0 64 64"><defs><linearGradient id="lg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#5eead4"/><stop offset=".5" stop-color="#38bdf8"/><stop offset="1" stop-color="#8b5cf6"/></linearGradient></defs><path d="M16 6h22l12 12v36a4 4 0 0 1-4 4H16a4 4 0 0 1-4-4V10a4 4 0 0 1 4-4z" fill="url(#lg)"/><path d="M19 36h7l4-9 6 18 4-9h5" stroke="#05121a" stroke-width="3.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    <div class="brand"><b>Cardwake</b><span data-t="tagline"></span></div>
+    <div class="sp"></div>
+    <span class="pill" id="adminPill"><span class="dot"></span><span id="adminTxt"></span></span>
+    <button class="iconbtn" id="langBtn"><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg><span id="langTxt"></span></button>
+  </header>
+
+  <!-- HOME -->
+  <section class="view" id="v-home">
+    <h1 data-t="home_title"></h1>
+    <p class="sub" data-t="home_sub"></p>
+    <div class="toolbar">
+      <button class="iconbtn" id="refreshBtn"><svg class="i" viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg><span data-t="refresh"></span></button>
+      <label class="toggle"><input type="checkbox" id="showAll"><span data-t="show_all"></span></label>
+      <div class="sp"></div>
+      <a class="link" id="openImg"><svg class="i" viewBox="0 0 24 24"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><polyline points="13 2 13 9 20 9"/></svg><span data-t="open_image"></span></a>
+    </div>
+    <div id="disks"></div>
+    <div class="tools" id="tools"></div>
+  </section>
+
+  <!-- DISK -->
+  <section class="view" id="v-disk">
+    <button class="back" id="backHome"><svg class="i" viewBox="0 0 24 24"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg><span data-t="back_cards"></span></button>
+    <div id="diskBody"></div>
+  </section>
+
+  <!-- JOB -->
+  <section class="view" id="v-job"><div id="jobBody"></div></section>
+
+  <footer>Cardwake <span id="ver"></span> · <span data-t="foot"></span></footer>
+</div>
+
+<!-- modal -->
+<div class="scrim" id="scrim"><div class="sheet glass" id="sheet"></div></div>
+<div class="toast" id="toast"></div>
+
+<script>
+'use strict';
+const TOKEN = new URLSearchParams(location.search).get('t') || '';
+const IC = {
+  sd:'<path d="M6 2h8l4 4v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z"/><path d="M8 6v3M11 6v3M14 6v3"/>',
+  usb:'<circle cx="10" cy="7" r="1.6"/><circle cx="4" cy="14" r="1.6"/><path d="M12 20v-9.5L7 7.5M10 14H4M12 14l5-3v-1"/><rect x="15.5" y="7" width="3" height="3"/><circle cx="12" cy="20" r="1.5"/>',
+  unlock:'<rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/>',
+  recover:'<polyline points="8 17 12 21 16 17"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.88 18.09A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.29"/>',
+  save:'<path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/>',
+  restore:'<polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/>',
+  tool:'<path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>',
+  trash:'<polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>',
+  folder:'<path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>',
+  check:'<polyline points="20 6 9 17 4 12"/>',
+  warn:'<path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>',
+  x:'<line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>',
+  lock:'<rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>',
+  img:'<rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/>',
+  vid:'<polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2"/>',
+  aud:'<path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>',
+  doc:'<path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><polyline points="13 2 13 9 20 9"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="16" y2="17"/>',
+  zip:'<path d="M21 8v13H3V8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/>',
+  scan:'<path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2"/><line x1="7" y1="12" x2="17" y2="12"/>',
+  pulse:'<polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>',
+  grid:'<rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>',
+  spy:'<circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><path d="M8 11h6M11 8v6"/>',
+  speed:'<path d="M12 2a10 10 0 1 0 10 10"/><polyline points="12 6 12 12 16 14"/>',
+  info:'<circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>',
+  eject:'<polygon points="5 15 12 5 19 15"/><line x1="5" y1="19" x2="19" y2="19"/>',
+  shield:'<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/>',
+  shred:'<line x1="4" y1="12" x2="20" y2="12"/><path d="M6 12V5h9l3 3v4"/><path d="M7 16v5M12 16v3M17 16v5"/>',
+  vault:'<rect x="2" y="4" width="20" height="16" rx="2"/><circle cx="12" cy="12" r="3.5"/><line x1="12" y1="8.5" x2="12" y2="6.5"/><line x1="12" y1="17.5" x2="12" y2="15.5"/>',
+  parts:'<rect x="3" y="5" width="18" height="14" rx="2"/><line x1="9" y1="5" x2="9" y2="19"/><line x1="15" y1="5" x2="15" y2="19"/>',
+  key:'<circle cx="7.5" cy="15.5" r="4.5"/><path d="M10.7 12.3L21 2M16 7l3 3"/>'
+};
+const ico = (n, c='') => `<svg class="i ${c}" viewBox="0 0 24 24">${IC[n]}</svg>`;
+
+/* ---------------- i18n ---------------- */
+const L = {
+ he:{
+  tagline:'החייאת כרטיסי זיכרון', foot:'נייד · ללא התקנה · לא כותב לכרטיס בזמן שחזור',
+  admin:'מנהל מערכת', limited:'מצב מוגבל – הפעל כמנהל', demo:'מצב הדגמה', lang:'English',
+  home_title:'בחר את הכרטיס שלך', home_sub:'חבר את הכרטיס או הדיסק-און-קי. מוצגים רק כוננים חיצוניים – דיסק המערכת לעולם לא מופיע ברשימה.',
+  refresh:'רענן', show_all:'הצג את כל הדיסקים (חוץ ממערכת)', open_image:'פתח קובץ תמונת דיסק',
+  empty_t:'לא זוהה כרטיס', empty_1:'הכנס מחדש את הכרטיס או את הדיסק-און-קי', empty_2:'נסה קורא כרטיסים או יציאת USB אחרים', empty_3:'לחץ על "רענן" אחרי החיבור',
+  tools_t:'כלים שלא קשורים לכרטיס מסוים', back_cards:'חזרה לבחירת כרטיס', back:'חזרה',
+  ro:'קריאה בלבד', nofs:'ללא מערכת קבצים', healthy:'תקין', offline:'לא מקוון', unhealthy:'בעיית בריאות', nomedia:'אין מדיה / 0 בתים',
+  diag_both_t:'הכרטיס נעול וגם לא קריא', diag_both_d:'קודם שחזר קבצים, ורק אחר כך נסה לפתוח נעילה או לפרמט.',
+  diag_ro_t:'הכרטיס במצב קריאה בלבד', diag_ro_d:'אפשר לנסות לשחרר את הנעילה בכל השיטות. אם הקבצים חשובים – שחזר אותם לפני כל פעולה אחרת.',
+  diag_raw_t:'אין מערכת קבצים קריאה (Windows מבקש פירמוט)', diag_raw_d:'אל תפרמט! שחזור קבצים עובד בדיוק במצב הזה – כל עוד לא נכתב משהו חדש על הכרטיס.',
+  diag_ok_t:'הכרטיס נראה תקין', diag_ok_d:'אם בכל זאת חסרים קבצים – נסה שחזור. אם הכרטיס מתנהג מוזר – הרץ אבחון או בדיקת סקטורים.',
+  diag_dead_t:'Windows לא רואה מדיה בכרטיס (0 בתים)', diag_dead_d:'ייתכן שהבקר מת או שהמגעים מלוכלכים. הרץ אבחון מלא כדי לדעת בוודאות.',
+  s_rescue:'הצלה', s_repair:'תיקון וניהול', s_health:'בדיקות תקינות', s_tools:'מידע ואבטחה', rec:'מומלץ',
+  a_recover:'שחזר קבצים', a_recover_d:'סריקה עמוקה לתמונות, סרטונים ומסמכים – גם מכרטיס מפורמט או RAW. לא כותב לכרטיס.',
+  a_image:'גיבוי ביט-אחר-ביט', a_image_d:'מעתיק את כל הכרטיס לקובץ IMG. מדלג על סקטורים מתים כדי לא להיתקע.',
+  a_restore:'צריבת תמונה לכרטיס', a_restore_d:'כותב קובץ IMG בחזרה לכרטיס (שיבוט כרטיסים). מוחק את תוכן הכרטיס.',
+  a_unlock:'שחרר קריאה בלבד', a_unlock_d:'דגלי דיסק, diskpart ומדיניות Windows – ואז בדיקת כתיבה אמיתית.',
+  a_repair:'תקן מערכת קבצים', a_repair_d:'בדיקת דיסק של Windows (CHKDSK) ותיקון שגיאות.',
+  a_parts:'ניהול מחיצות', a_parts_d:'יצירה, מחיקה, שינוי גודל, שם ואות כונן.',
+  a_format:'פרמט כרטיס', a_format_d:'מהיר או מלא (איפוס אפסים). FAT32 גם מעל 32GB, exFAT, NTFS. מוצא אחרון.',
+  a_diagnose:'אבחון חכם', a_diagnose_d:'גודל פיזי אמיתי, בדיקת קריאה וכתיבה, וזיהוי סיבת התקלה: מתג, בקר או מוות מוחלט.',
+  a_surface:'מפת סקטורים פגומים', a_surface_d:'סריקת קריאה בלבד של כל הכרטיס עם מפה ויזואלית של אזורים תקינים, איטיים ופגומים.',
+  a_fake:'בדיקת כרטיס מזויף', a_fake_d:'כותב וקורא נתונים לכל אורך הכרטיס כדי לחשוף נפח מזויף. מוחק את הכרטיס.',
+  a_bench:'בדיקת מהירות', a_bench_d:'קריאה/כתיבה רציפה ו-4K אקראי, ודירוג (Class, U/V, A1/A2).',
+  a_info:'זיהוי רכיבים', a_info_d:'יצרן, דגם, VID/PID, מספר סידורי וקושחה של הכרטיס או הקורא.',
+  a_wblock_on:'נעילת כתיבה בתוכנה', a_wblock_on_d:'הופך את הכרטיס לקריאה בלבד במחשב הזה – הגנה מפני מחיקה או וירוסים.',
+  a_wblock_off:'הסר נעילת כתיבה', a_wblock_off_d:'מחזיר את הכרטיס למצב כתיבה רגיל.',
+  a_eject:'ניתוק בטוח', a_eject_d:'מרוקן מטמון, מזהה תוכנות שתופסות את הכרטיס ומוציא בלחיצה.',
+  a_bitlocker:'הצפנת כרטיס (BitLocker)', a_bitlocker_d:'הגנת סיסמה על כל הכרטיס. דורש Windows Pro/Enterprise.',
+  a_shred:'גריסת קבצים מאובטחת', a_shred_d:'דורס קבצים ותיקיות כך שלא יהיה ניתן לשחזר אותם.',
+  a_vault:'כספת מוצפנת', a_vault_d:'אורז קבצים/תיקייה לקובץ אחד מוגן סיסמה (AES-256). עובד בכל גרסת Windows.',
+  need_fs:'דורש מערכת קבצים תקינה', need_media:'אין מדיה בכרטיס',
+  s_recover:'שחזור קבצים', s_recover_d:'בחר אילו סוגי קבצים לחפש ואיפה לשמור אותם.',
+  tp_photos:'תמונות', tp_videos:'סרטונים', tp_audio:'שמע', tp_docs:'מסמכים', tp_archives:'ארכיונים ואפליקציות',
+  out_lbl:'שמור את הקבצים ששוחזרו אל', out_hint:'בחר תיקייה בכונן אחר – לעולם לא על הכרטיס עצמו.', browse:'עיון…',
+  start_scan:'התחל שחזור', cancel:'ביטול', close:'סגור', continue:'המשך',
+  s_image:'גיבוי ביט-אחר-ביט', s_image_d:'נדרש מקום פנוי בגודל הכרטיס. אחר כך אפשר לשחזר מהקובץ בלי לגעת בכרטיס.', img_lbl:'קובץ התמונה', start_image:'התחל גיבוי',
+  s_restore:'צריבת תמונה לכרטיס', s_restore_w:'כל מה שעל הכרטיס יימחק ויוחלף בתוכן קובץ התמונה.', restore_file:'קובץ התמונה (IMG)', verify_lbl:'אמת אחרי הכתיבה (מומלץ, אך ארוך יותר)', do_restore:'מחק וצרוב',
+  s_format:'פרמוט הכרטיס', s_format_w:'כל מה שעל הכרטיס יימחק לצמיתות. אם יש קבצים חשובים – שחזר אותם קודם!',
+  fs_lbl:'מערכת קבצים', mode_lbl:'סוג פירמוט', m_quick:'מהיר (שניות)', m_full:'מלא (דורס הכול באפסים)', name_lbl:'שם הכרטיס',
+  confirm_lbl:'כדי לאשר, הקלד את מספר הדיסק: ', understand:'אני מבין שהכול יימחק ולא ניתן לשחזר', do_format:'מחק ופרמט',
+  fs_note:'EXT4 אינו נתמך: ל-Windows אין תמיכה מובנית בו.',
+  s_fake:'בדיקת כרטיס מזויף', s_fake_w:'הבדיקה כותבת נתונים על כל הכרטיס ולכן מוחקת אותו. היא עשויה לקחת זמן רב בכרטיסים גדולים.', do_fake:'מחק והתחל בדיקה',
+  s_unlock:'שחרור קריאה בלבד', s_chk:'תיקון מערכת קבצים', s_diagnose:'אבחון חכם', s_surface:'מפת סקטורים', s_bench:'בדיקת מהירות', s_wblock:'נעילת כתיבה', s_eject:'ניתוק בטוח',
+  s_bitlocker:'הצפנת כרטיס', s_shred:'גריסת קבצים', s_vault:'כספת מוצפנת', s_info:'זיהוי רכיבים', s_parts:'ניהול מחיצות',
+  st_running:'עובד…', st_done:'הושלם', st_cancelled:'בוטל', st_error:'שגיאה',
+  stat_found:'קבצים שנמצאו', stat_speed:'מהירות', stat_elapsed:'זמן שחלף', stat_eta:'זמן שנותר', stat_bad:'סקטורים פגומים', scanned:'{a} מתוך {b}',
+  open_folder:'פתח תיקייה', back_disk:'חזרה לכרטיס', back_home:'חזרה לרשימה', stop:'עצור', details:'פרטים טכניים',
+  gal_t:'קבצים שנמצאו', gal_empty:'הקבצים יופיעו כאן בזמן שהסריקה מתקדמת…',
+  done_n:'שוחזרו {n} קבצים', done_none:'לא נמצאו קבצים', done_none_d:'אם נכתבו נתונים חדשים על הכרטיס אחרי הפירמוט, או שהכרטיס עבר TRIM – ייתכן שהמידע נמחק סופית.',
+  done_n_d:'הקבצים נשמרו בתיקייה לפי סוג. קבצים עם סימן ! התאוששו רק חלקית.',
+  img_done:'הגיבוי נשמר', img_done_d:'עכשיו אפשר לשחזר ישירות מהקובץ (דרך "פתח קובץ תמונת דיסק").', img_bad:'{n} סקטורים לא נקראו ומולאו באפסים.',
+  restore_ok:'התמונה נצרבה לכרטיס', restore_ok_d:'הכרטיס מוכן. נתק והכנס אותו מחדש אם Windows לא מזהה אותו מיד.', restore_ver:' האימות עבר בהצלחה.',
+  restore_bad:'האימות נכשל', restore_bad_d:'הנתונים שנקראו בחזרה שונים ממה שנכתב. הכרטיס כנראה פגום.',
+  stp_disk:'דגלי דיסק', stp_partitions:'מחיצות', stp_diskpart:'שחרור ברמה נמוכה (diskpart)', stp_policy:'מדיניות Windows', stp_verify:'בדיקת כתיבה / אימות',
+  stp_clean:'מחיקת טבלת המחיצות', stp_partition:'יצירת מחיצה', stp_format:'פירמוט', stp_chkdsk:'בדיקת מערכת קבצים', stp_write:'כתיבת התמונה', stp_test:'כתיבה וקריאה חוזרת',
+  stp_size:'גודל פיזי', stp_read:'בדיקת קריאה', stp_write2:'בדיקת כתיבה', stp_verdict:'אבחנה', stp_apply:'החלה', stp_flush:'ריקון מטמון', stp_release:'זיהוי תוכנות שתופסות', stp_eject:'הוצאה', stp_encrypt:'הצפנה',
+  v_ok_t:'הכרטיס ניתן שוב לכתיבה', v_ok_d:'נוצר ונמחק קובץ בדיקה בהצלחה. נתק והכנס מחדש את הכרטיס כדי ש-Windows יטען את השינוי.',
+  v_locked_t:'הכרטיס עדיין נעול', v_locked_d:'הנעילה נמצאת מתחת לרמה ש-Windows יכול לשנות. הסיבות הסבירות:',
+  v_b1:'מתג נעילה פיזי על כרטיס ה-SD או על המתאם – החלק אותו הרחק ממצב LOCK.',
+  v_b2:'קורא כרטיסים או מתאם תקול – נסה קורא אחר או יציאת USB אחרת.',
+  v_b3:'בקר הכרטיס נעל את עצמו כי הזיכרון התבלה. זה קבוע – העתק עכשיו את הקבצים והחלף כרטיס.',
+  v_noletter_t:'הדיסק ניתן לכתיבה, אך אין אות כונן', v_noletter_d:'אין מערכת קבצים קריאה. שחזר קבצים קודם, ואז פרמט.',
+  v_failed_t:'משהו השתבש', v_failed_d:'ראה את הפרטים הטכניים למטה. ייתכן שהכרטיס הוסר באמצע.',
+  c_ok:'לא נמצאו שגיאות', c_fixed:'נמצאו שגיאות ותוקנו', c_problems:'Windows לא הצליח לתקן הכול. שחזר קבצים ואז פרמט.',
+  f_ok:'הכרטיס פורמט בהצלחה', f_ok_d:'הוא מוכן לשימוש.', f_failed:'הפירמוט נכשל', f_failed_d:'אם נכתב שהמדיה מוגנת כתיבה – הכרטיס נעול (מתג או זיכרון שנשחק).',
+  dg_ok:'הכרטיס תקין', dg_ok_d:'הקריאה והכתיבה עובדות והנפח הפיזי תואם למה ש-Windows מציג.',
+  dg_degraded:'חלק מהקריאות נכשלו', dg_degraded_d:'הכרטיס מתחיל להיכשל. גבה אותו עכשיו (גיבוי ביט-אחר-ביט) ואז הרץ מפת סקטורים.',
+  dg_swlock:'הכרטיס נעול בתוכנה', dg_swlock_d:'Windows מסמן את הדיסק כקריאה בלבד. נסה "שחרר קריאה בלבד".',
+  dg_hwlock:'נעילת חומרה: אפשר לקרוא אבל אי אפשר לכתוב', dg_hwlock_d:'הדגלים בתוכנה נקיים, ובכל זאת הכתיבה נכשלת. הסיבות לפי סדר הסבירות:',
+  dg_dead:'הבקר לא מגיב – אין גישה גם לקריאה', dg_dead_d:'לא ניתן לקרוא אף סקטור, או ש-Windows רואה 0 בתים. זה מצב של בקר מת או מגעים פגומים.',
+  dg_dead_1:'נסה קורא כרטיסים אחר, כבל או יציאה אחרת, ומחשב אחר.', dg_dead_2:'נקה את המגעים בעדינות באלכוהול איזופרופיל.',
+  dg_dead_3:'אם עדיין אין תגובה – חומרה בלבד יכולה להציל את המידע: מעבדת שחזור מקצועית בשיטת Chip-Off (קריאה ישירה של שבב הזיכרון). אל תנסה לפרמט או לחמם את הכרטיס.',
+  dg_claimed:'נפח לפי Windows', dg_phys:'נפח פיזי בפועל', dg_reads:'קריאות שהצליחו', dg_write:'בדיקת כתיבה', dg_flag:'דגל קריאה בלבד',
+  w_ok:'הצלחה', w_fail:'נכשלה', w_na:'לא נבדק (אין אות כונן)', yes:'כן', no:'לא',
+  sw_lock:'נעול', sw_ok:'פתוח',
+  sf_ok:'כל הכרטיס נקרא ללא שגיאות', sf_slow:'נמצאו אזורים איטיים', sf_bad:'נמצאו אזורים פגומים', sf_bad_d:'גבה את הכרטיס מיד, והחלף אותו. הסקטורים הפגומים מסומנים באדום.',
+  sf_ok_d:'כל האזורים תקינים. מהירות קריאה ממוצעת: \u2066{v} MB/s\u2069.', sf_slow_d:'האזורים הכתומים איטיים מהרגיל – סימן ראשון להתבלות.',
+  lg_ok:'תקין', lg_slow:'איטי', lg_bad:'פגום', lg_pending:'עוד לא נסרק',
+  fk_werr:'הכרטיס סירב לכתיבה', fk_werr_d:'הכתיבה הראשונה נדחתה, כלומר הכרטיס נעול לכתיבה (מתג, בקר או מדיניות). בדיקת הנפח לא בוצעה, ואין כאן פסק דין על הנפח. שחרר את הנעילה ונסה שוב.',
+  fk_ok:'הנפח אמיתי', fk_ok_d:'כל בלוק נקרא בחזרה נכון. הכרטיס עכשיו ריק – פרמט אותו לפני השימוש.',
+  fk_fake:'כרטיס מזויף!', fk_fake_d:'הכרטיס טוען {c} אבל רק {r} באמת עובדים. כל מה שנכתב מעבר לזה אובד. פרמט אותו לנפח האמיתי או החזר למוכר.', fk_fmt:'פרמט עכשיו',
+  bn_seqR:'קריאה רציפה', bn_seqW:'כתיבה רציפה', bn_rndR:'קריאה אקראית 4K', bn_rndW:'כתיבה אקראית 4K', bn_done:'הבדיקה הושלמה', bn_v:'צילום 4K: {v}', bn_4k_ok:'מתאים לצילום וידאו 4K', bn_4k_no:'איטי מדי לצילום 4K רציף', bn_nowrite:'נמדדה קריאה בלבד – אין אות כונן לבדיקת כתיבה.',
+  sh_t:'גריסה', sh_pick:'בחר קבצים', sh_pickf:'בחר תיקייה', sh_passes:'מספר דריסות', sh_go:'גרוס לצמיתות', sh_none:'לא נבחר דבר', sh_w:'הקבצים ייעלמו לצמיתות, גם מהאשפה וגם מכלי שחזור.', sh_flash:'בכרטיסי פלאש ה-wear-leveling עלול להשאיר עותקים פיזיים. לביטחון מלא השתמש גם בפירמוט מלא.', sh_done:'נגרסו {n} קבצים',
+  vt_t:'כספת מוצפנת', vt_enc:'הצפן', vt_dec:'פתח כספת', vt_src:'קובץ או תיקייה להצפנה', vt_file:'קובץ', vt_folder:'תיקייה', vt_vfile:'קובץ כספת (.cwvault)', vt_out_enc:'שמור את הכספת בשם', vt_out_dec:'חלץ אל תיקייה', vt_pw:'סיסמה', vt_pw2:'חזור על הסיסמה', vt_mismatch:'הסיסמאות לא זהות', vt_warn:'אם תשכח את הסיסמה אי אפשר לשחזר את המידע – אין דלת אחורית.', vt_done_enc:'הכספת נוצרה', vt_done_dec:'חולצו {n} קבצים', vt_wrong:'סיסמה שגויה או קובץ פגום', vt_short:'בחר סיסמה של 6 תווים לפחות',
+  bl_t:'הצפנת כרטיס', bl_d:'מפעיל BitLocker To Go עם סיסמה. אחרי ההפעלה הכרטיס יבקש סיסמה בכל מחשב Windows Pro.', bl_ok:'BitLocker הופעל', bl_un:'BitLocker לא זמין בגרסת Windows הזו', bl_un_d:'השתמש בכספת מוצפנת – היא עובדת בכל גרסה.', bl_go:'הצפן',
+  ej_ok:'אפשר להוציא את הכרטיס', ej_busy:'הכרטיס עדיין בשימוש', ej_busy_d:'תוכנות עדיין משתמשות בכרטיס (ראה פרטים). סגור אותן, או תן ל-Cardwake לסגור אותן בשבילך.', ej_retry:'נסה שוב', ej_kill:'סגור תוכנות ונסה שוב',
+  wb_on:'הכרטיס נעול לכתיבה', wb_on_d:'במחשב הזה אי אפשר לכתוב או למחוק בכרטיס עד שתסיר את הנעילה. ההגנה חלה על Windows שבו הופעלה – מחשב אחר לא יראה אותה (נעילה כזו אפשרית רק עם מתג פיזי).', wb_off:'הנעילה הוסרה', wb_off_d:'אפשר לכתוב לכרטיס כרגיל.',
+  in_none:'לא התקבל מידע', in_note:'מזהי CID/CSD של הכרטיס עצמו אינם נגישים דרך Windows עבור קוראי USB – מוצגים כאן המזהים ש-Windows מקבל מהקורא והבקר.',
+  in_model:'דגם', in_mfr:'יצרן', in_iface:'ממשק', in_fw:'קושחה', in_serial:'מספר סידורי', in_vid:'VID (יצרן USB)', in_pid:'PID (מוצר USB)', in_size:'נפח', in_sector:'גודל סקטור (לוגי/פיזי)', in_style:'סגנון מחיצות', in_health:'בריאות', in_pnp:'מזהה התקן', in_media:'סוג מדיה',
+  pt_none:'אין מחיצות בדיסק', pt_num:'#', pt_letter:'אות', pt_size:'גודל', pt_fs:'מערכת קבצים', pt_label:'שם', pt_rename:'שם', pt_letterbtn:'אות', pt_resize:'גודל', pt_delete:'מחק', pt_create:'יצירת מחיצה חדשה', pt_free:'מקום פנוי בדיסק', pt_size_gb:'גודל (GB, ריק = הכול)', pt_do:'צור ופרמט', pt_done:'בוצע', pt_resize_note:'שינוי גודל נתמך רק במחיצות NTFS.',
+  pt_ask_label:'שם חדש לכרטיס:', pt_ask_letter:'אות כונן חדשה (למשל H):', pt_ask_size:'גודל חדש ב-GB:',
+  e_busy:'פעולה אחרת רצה כרגע', cta_recover:'שחזר קבצים עכשיו', cta_unlock:'נסה לשחרר נעילה', cta_image:'גבה את הכרטיס עכשיו', cta_surface:'הרץ מפת סקטורים', ok_btn:'אישור'
+ },
+ en:{
+  tagline:'Revive your memory cards', foot:'Portable · no install · never writes to the card while recovering',
+  admin:'Administrator', limited:'Limited mode – run as administrator', demo:'Demo mode', lang:'עברית',
+  home_title:'Choose your card', home_sub:'Insert the card or USB drive. Only external drives are listed – your system disk never appears.',
+  refresh:'Refresh', show_all:'Show all disks (except system)', open_image:'Open a disk image file',
+  empty_t:'No card detected', empty_1:'Re-insert the card or USB drive', empty_2:'Try a different card reader or USB port', empty_3:'Press "Refresh" after plugging in',
+  tools_t:'Tools that are not tied to a card', back_cards:'Back to cards', back:'Back',
+  ro:'Read-only', nofs:'No file system', healthy:'Healthy', offline:'Offline', unhealthy:'Health warning', nomedia:'No media / 0 bytes',
+  diag_both_t:'The card is locked and unreadable', diag_both_d:'Recover your files first, then try unlocking or formatting.',
+  diag_ro_t:'The card is read-only', diag_ro_d:'You can try releasing the lock with every method. If the files matter, recover them before anything else.',
+  diag_raw_t:'No readable file system (Windows asks to format)', diag_raw_d:'Do not format! File recovery works exactly in this state – as long as nothing new was written to the card.',
+  diag_ok_t:'The card looks healthy', diag_ok_d:'If files are still missing, try recovery. If the card misbehaves, run the diagnosis or the sector map.',
+  diag_dead_t:'Windows sees no media in the card (0 bytes)', diag_dead_d:'The controller may be dead or the contacts dirty. Run the full diagnosis to be sure.',
+  s_rescue:'Rescue', s_repair:'Repair & manage', s_health:'Health checks', s_tools:'Info & security', rec:'Recommended',
+  a_recover:'Recover files', a_recover_d:'Deep scan for photos, videos and documents – even from formatted or RAW cards. Never writes to the card.',
+  a_image:'Bit-by-bit backup', a_image_d:'Copies the whole card to an IMG file. Skips dead sectors so it never gets stuck.',
+  a_restore:'Flash image to card', a_restore_d:'Writes an IMG file back to a card (card cloning). Erases the card.',
+  a_unlock:'Unlock read-only', a_unlock_d:'Disk flags, diskpart and Windows policies – then a real write test.',
+  a_repair:'Repair file system', a_repair_d:'Windows check-disk (CHKDSK) and error repair.',
+  a_parts:'Partition manager', a_parts_d:'Create, delete, resize, rename and change the drive letter.',
+  a_format:'Format card', a_format_d:'Quick or full (zero-fill). FAT32 even above 32 GB, exFAT, NTFS. Last resort.',
+  a_diagnose:'Smart diagnosis', a_diagnose_d:'Real physical size, read & write tests, and the cause: switch, controller or total failure.',
+  a_surface:'Bad-sector map', a_surface_d:'Read-only scan of the whole card with a visual map of healthy, slow and bad areas.',
+  a_fake:'Fake-capacity test', a_fake_d:'Writes and reads data across the whole card to expose fake capacity. Erases the card.',
+  a_bench:'Speed benchmark', a_bench_d:'Sequential and 4K random read/write, with a rating (Class, U/V, A1/A2).',
+  a_info:'Hardware identification', a_info_d:'Manufacturer, model, VID/PID, serial and firmware of the card or reader.',
+  a_wblock_on:'Software write-block', a_wblock_on_d:'Makes the card read-only on this PC – protection against accidental deletion and viruses.',
+  a_wblock_off:'Remove write-block', a_wblock_off_d:'Returns the card to normal read/write.',
+  a_eject:'Safe eject', a_eject_d:'Flushes the cache, detects programs using the card and ejects with one click.',
+  a_bitlocker:'Encrypt card (BitLocker)', a_bitlocker_d:'Password-protects the whole card. Needs Windows Pro/Enterprise.',
+  a_shred:'Secure file shredder', a_shred_d:'Overwrites files and folders so they cannot be recovered.',
+  a_vault:'Encrypted vault', a_vault_d:'Packs files/a folder into one password-protected file (AES-256). Works on every Windows edition.',
+  need_fs:'Needs a healthy file system', need_media:'There is no media in the card',
+  s_recover:'Recover files', s_recover_d:'Choose which file types to look for and where to save them.',
+  tp_photos:'Photos', tp_videos:'Videos', tp_audio:'Audio', tp_docs:'Documents', tp_archives:'Archives & apps',
+  out_lbl:'Save recovered files to', out_hint:'Pick a folder on another drive – never on the card itself.', browse:'Browse…',
+  start_scan:'Start recovery', cancel:'Cancel', close:'Close', continue:'Continue',
+  s_image:'Bit-by-bit backup', s_image_d:'Needs free space equal to the card size. You can then recover from the file without touching the card.', img_lbl:'Image file', start_image:'Start backup',
+  s_restore:'Flash image to card', s_restore_w:'Everything on the card will be erased and replaced with the contents of the image file.', restore_file:'Image file (IMG)', verify_lbl:'Verify after writing (recommended, but slower)', do_restore:'Erase & write',
+  s_format:'Format the card', s_format_w:'Everything on the card will be erased permanently. If you have important files, recover them first!',
+  fs_lbl:'File system', mode_lbl:'Format type', m_quick:'Quick (seconds)', m_full:'Full (zero-fills everything)', name_lbl:'Card name',
+  confirm_lbl:'To confirm, type the disk number: ', understand:'I understand everything will be erased and cannot be recovered', do_format:'Erase & format',
+  fs_note:'EXT4 is not supported: Windows has no built-in support for it.',
+  s_fake:'Fake-capacity test', s_fake_w:'The test writes data over the entire card and therefore erases it. It can take a long time on large cards.', do_fake:'Erase & start test',
+  s_unlock:'Unlock read-only', s_chk:'Repair file system', s_diagnose:'Smart diagnosis', s_surface:'Sector map', s_bench:'Speed benchmark', s_wblock:'Write-block', s_eject:'Safe eject',
+  s_bitlocker:'Encrypt card', s_shred:'File shredder', s_vault:'Encrypted vault', s_info:'Hardware identification', s_parts:'Partition manager',
+  st_running:'Working…', st_done:'Done', st_cancelled:'Cancelled', st_error:'Error',
+  stat_found:'Files found', stat_speed:'Speed', stat_elapsed:'Elapsed', stat_eta:'Remaining', stat_bad:'Bad sectors', scanned:'{a} of {b}',
+  open_folder:'Open folder', back_disk:'Back to card', back_home:'Back to list', stop:'Stop', details:'Technical details',
+  gal_t:'Files found', gal_empty:'Files will appear here as the scan progresses…',
+  done_n:'{n} files recovered', done_none:'No files found', done_none_d:'If new data was written after formatting, or the card was TRIMmed, the data may be gone for good.',
+  done_n_d:'Files are saved by type. Items marked ! were only partially recovered.',
+  img_done:'Backup saved', img_done_d:'You can now recover straight from the file (via "Open a disk image file").', img_bad:'{n} sectors could not be read and were filled with zeros.',
+  restore_ok:'Image written to the card', restore_ok_d:'The card is ready. Unplug and re-insert it if Windows does not see it right away.', restore_ver:' Verification passed.',
+  restore_bad:'Verification failed', restore_bad_d:'The data read back differs from what was written. The card is probably damaged.',
+  stp_disk:'Disk flags', stp_partitions:'Partitions', stp_diskpart:'Low-level unlock (diskpart)', stp_policy:'Windows policies', stp_verify:'Write test / verify',
+  stp_clean:'Wipe partition table', stp_partition:'Create partition', stp_format:'Format', stp_chkdsk:'Checking file system', stp_write:'Writing the image', stp_test:'Write & read back',
+  stp_size:'Physical size', stp_read:'Read test', stp_write2:'Write test', stp_verdict:'Verdict', stp_apply:'Apply', stp_flush:'Flush cache', stp_release:'Find programs using it', stp_eject:'Eject', stp_encrypt:'Encrypt',
+  v_ok_t:'The card is writable again', v_ok_d:'A test file was created and deleted successfully. Unplug and re-insert the card so Windows picks up the change.',
+  v_locked_t:'The card is still locked', v_locked_d:'The lock is below what Windows can change. Most likely:',
+  v_b1:'A physical lock switch on the SD card or adapter – slide it away from LOCK.',
+  v_b2:'A faulty card reader or adapter – try another reader or USB port.',
+  v_b3:'The card controller locked itself because the flash is worn out. This is permanent – copy your files now and replace the card.',
+  v_noletter_t:'The disk is writable but has no drive letter', v_noletter_d:'There is no readable file system. Recover files first, then format.',
+  v_failed_t:'Something went wrong', v_failed_d:'See the technical details below. The card may have been removed mid-way.',
+  c_ok:'No errors found', c_fixed:'Errors were found and fixed', c_problems:'Windows could not repair everything. Recover files, then format.',
+  f_ok:'Card formatted', f_ok_d:'It is ready to use.', f_failed:'Format failed', f_failed_d:'If it says the media is write protected, the card is locked (switch or worn-out flash).',
+  dg_ok:'The card is healthy', dg_ok_d:'Reading and writing work and the physical size matches what Windows shows.',
+  dg_degraded:'Some reads failed', dg_degraded_d:'The card is starting to fail. Back it up now (bit-by-bit backup), then run the sector map.',
+  dg_swlock:'The card is locked in software', dg_swlock_d:'Windows marks the disk as read-only. Try "Unlock read-only".',
+  dg_hwlock:'Hardware lock: it can be read but not written', dg_hwlock_d:'The software flags are clear, yet writing fails. Causes, most likely first:',
+  dg_dead:'The controller does not respond – not even reads work', dg_dead_d:'No sector can be read, or Windows sees 0 bytes. This points to a dead controller or damaged contacts.',
+  dg_dead_1:'Try another card reader, cable or port, and another computer.', dg_dead_2:'Gently clean the contacts with isopropyl alcohol.',
+  dg_dead_3:'If there is still no response, only hardware can save the data: a professional recovery lab using Chip-Off (reading the memory chip directly). Do not format or heat the card.',
+  dg_claimed:'Size according to Windows', dg_phys:'Actual physical size', dg_reads:'Successful reads', dg_write:'Write test', dg_flag:'Read-only flag',
+  w_ok:'passed', w_fail:'failed', w_na:'not tested (no drive letter)', yes:'yes', no:'no',
+  sw_lock:'LOCK', sw_ok:'OK',
+  sf_ok:'The whole card was read without errors', sf_slow:'Slow areas were found', sf_bad:'Bad areas were found', sf_bad_d:'Back the card up immediately and replace it. Bad sectors are marked red.',
+  sf_ok_d:'All areas are healthy. Average read speed: {v} MB/s.', sf_slow_d:'Amber areas are slower than normal – an early sign of wear.',
+  lg_ok:'healthy', lg_slow:'slow', lg_bad:'bad', lg_pending:'not scanned yet',
+  fk_werr:'The card refused to be written', fk_werr_d:'The very first write was rejected, so the card is write-protected (switch, controller or policy). The capacity test did not run, so there is no verdict on the size. Unlock the card and try again.',
+  fk_ok:'The capacity is real', fk_ok_d:'Every block read back correctly. The card is now empty – format it before use.',
+  fk_fake:'Fake card!', fk_fake_d:'The card claims {c} but only {r} actually works. Anything written beyond that is lost. Format it to the real size or return it.', fk_fmt:'Format now',
+  bn_seqR:'Sequential read', bn_seqW:'Sequential write', bn_rndR:'Random read 4K', bn_rndW:'Random write 4K', bn_done:'Benchmark finished', bn_v:'4K video: {v}', bn_4k_ok:'Suitable for 4K video recording', bn_4k_no:'Too slow for continuous 4K recording', bn_nowrite:'Only read speed was measured – there is no drive letter for the write test.',
+  sh_t:'Shredder', sh_pick:'Choose files', sh_pickf:'Choose a folder', sh_passes:'Overwrite passes', sh_go:'Shred permanently', sh_none:'Nothing selected', sh_w:'The files will be gone for good – also from the recycle bin and from recovery tools.', sh_flash:'On flash cards wear-leveling may keep physical copies. For full certainty also run a full format.', sh_done:'{n} files shredded',
+  vt_t:'Encrypted vault', vt_enc:'Encrypt', vt_dec:'Open a vault', vt_src:'File or folder to encrypt', vt_file:'File', vt_folder:'Folder', vt_vfile:'Vault file (.cwvault)', vt_out_enc:'Save the vault as', vt_out_dec:'Extract into folder', vt_pw:'Password', vt_pw2:'Repeat password', vt_mismatch:'The passwords do not match', vt_warn:'If you forget the password the data cannot be recovered – there is no back door.', vt_done_enc:'Vault created', vt_done_dec:'{n} files extracted', vt_wrong:'Wrong password or damaged file', vt_short:'Choose a password of at least 6 characters',
+  bl_t:'Encrypt card', bl_d:'Turns on BitLocker To Go with a password. Afterwards the card asks for the password on any Windows Pro computer.', bl_ok:'BitLocker enabled', bl_un:'BitLocker is not available on this Windows edition', bl_un_d:'Use an encrypted vault instead – it works on every edition.', bl_go:'Encrypt',
+  ej_ok:'You can remove the card', ej_busy:'The card is still in use', ej_busy_d:'Programs are still using the card (see details). Close them, or let Cardwake close them for you.', ej_retry:'Try again', ej_kill:'Close programs and retry',
+  wb_on:'The card is write-blocked', wb_on_d:'On this PC nothing can be written to or deleted from the card until you remove the block. The protection applies to the Windows where it was set – another PC will not see it (that kind of lock needs a physical switch).', wb_off:'Write-block removed', wb_off_d:'The card can be written to normally.',
+  in_none:'No information received', in_note:'The card’s own CID/CSD registers are not reachable through Windows for USB readers – this shows the identifiers Windows gets from the reader and controller.',
+  in_model:'Model', in_mfr:'Manufacturer', in_iface:'Interface', in_fw:'Firmware', in_serial:'Serial number', in_vid:'VID (USB vendor)', in_pid:'PID (USB product)', in_size:'Capacity', in_sector:'Sector size (logical/physical)', in_style:'Partition style', in_health:'Health', in_pnp:'Device ID', in_media:'Media type',
+  pt_none:'The disk has no partitions', pt_num:'#', pt_letter:'Letter', pt_size:'Size', pt_fs:'File system', pt_label:'Name', pt_rename:'Rename', pt_letterbtn:'Letter', pt_resize:'Resize', pt_delete:'Delete', pt_create:'Create a new partition', pt_free:'Free space on disk', pt_size_gb:'Size (GB, empty = all)', pt_do:'Create & format', pt_done:'Done', pt_resize_note:'Resizing is supported on NTFS partitions only.',
+  pt_ask_label:'New name for the volume:', pt_ask_letter:'New drive letter (e.g. H):', pt_ask_size:'New size in GB:',
+  e_busy:'Another task is running', cta_recover:'Recover files now', cta_unlock:'Try to unlock', cta_image:'Back the card up now', cta_surface:'Run the sector map', ok_btn:'OK'
+ }
+};
+const S = { lang:'he', disks:[], showAll:false, sel:null, info:{}, job:null, jobId:'', filesSeen:0, logSeen:0,
+            types:{photos:1,videos:1,audio:1,docs:1,archives:1}, outdir:'', imgfile:'', files:[], renderedFiles:0, view:'home' };
+try { const l = localStorage.getItem('cw_lang'); if (l) S.lang = l; } catch(e) {}
+const t = (k, v) => { let s = (L[S.lang][k] ?? L.en[k] ?? k); if (v) for (const x in v) s = s.replace('{'+x+'}', v[x]); return s; };
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+/* ---------------- helpers ---------------- */
+async function api(path, body) {
+  const opt = body === undefined ? {headers:{'X-Token':TOKEN}} : {method:'POST', headers:{'X-Token':TOKEN,'Content-Type':'application/json'}, body:JSON.stringify(body)};
+  const r = await fetch(path, opt);
+  let j = {}; try { j = await r.json(); } catch(e) {}
+  if (!r.ok) { const err = new Error(j.error || r.statusText); err.code = r.status; throw err; }
+  return j;
+}
+function toast(msg) { const el = $('#toast'); el.textContent = msg; el.classList.add('on'); clearTimeout(toast.t); toast.t = setTimeout(() => el.classList.remove('on'), 5600); }
+const ltr = x => '\u2066' + x + '\u2069';
+const fmtBraw = n => { n = +n || 0; if (!n) return '0 B'; const u = ['B','KB','MB','GB','TB']; let i = 0; while (n >= 1000 && i < 4) { n /= 1000; i++; } return (n >= 100 || i === 0 ? n.toFixed(0) : n.toFixed(1)) + ' ' + u[i]; };
+const fmtB = n => ltr(fmtBraw(n));
+const fmtT = s => { s = Math.max(0, Math.round(s)); const h = Math.floor(s/3600), m = Math.floor(s%3600/60), x = s%60; return (h ? h + ':' + String(m).padStart(2,'0') : m) + ':' + String(x).padStart(2,'0'); };
+function setView(v) { S.view = v; document.querySelectorAll('.view').forEach(e => e.classList.toggle('on', e.id === 'v-' + v)); window.scrollTo(0, 0); }
+function applyLang() {
+  document.documentElement.lang = S.lang; document.documentElement.dir = S.lang === 'he' ? 'rtl' : 'ltr';
+  document.querySelectorAll('[data-t]').forEach(e => e.textContent = t(e.dataset.t));
+  $('#langTxt').textContent = t('lang');
+  $('#adminTxt').textContent = S.info.demo ? t('demo') : (S.info.admin ? t('admin') : t('limited'));
+  $('#adminPill').className = 'pill ' + (S.info.demo ? 'demo' : (S.info.admin ? '' : 'warn'));
+}
+const tcol = {photos:'img', videos:'vid', audio:'aud', docs:'doc', archives:'zip'};
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+/* ---------------- disks ---------------- */
+function diskState(d) {
+  const ro = d.readonly || (d.volumes || []).some(v => v.ro);
+  const nomedia = !d.size || /no media/i.test(d.opstatus || '');
+  const raw = !nomedia && (d.style === 'RAW' || !(d.volumes || []).length);
+  return { ro, raw, nomedia, offline: d.offline, bad: d.health && d.health !== 'Healthy' && d.health !== '' };
+}
+function diskSub(d) {
+  const v = (d.volumes || []).map(x => (x.fs || '?') + ' · ' + x.letter + ':').join('  ');
+  return `<bdi dir="ltr">${d.size ? fmtB(d.size) : '0 B'} · ${esc(d.bus)}${v ? ' · ' + esc(v) : ''}</bdi>`;
+}
+function chipsFor(d) {
+  const s = diskState(d), c = [];
+  if (s.nomedia) c.push(`<span class="chip bad">${ico('warn')}${t('nomedia')}</span>`);
+  if (s.ro) c.push(`<span class="chip bad">${ico('lock')}${t('ro')}</span>`);
+  if (s.raw) c.push(`<span class="chip warn">${ico('warn')}${t('nofs')}</span>`);
+  if (s.offline) c.push(`<span class="chip warn">${t('offline')}</span>`);
+  if (s.bad) c.push(`<span class="chip bad">${t('unhealthy')}</span>`);
+  if (!c.length) c.push(`<span class="chip ok">${ico('check')}${t('healthy')}</span>`);
+  return c.join('');
+}
+async function loadDisks() {
+  $('#disks').innerHTML = '';
+  try { S.disks = (await api('/api/disks')).disks || []; } catch(e) { toast(e.message); S.disks = []; }
+  renderHome();
+}
+function renderHome() {
+  const list = S.disks.filter(d => S.showAll || d.removable);
+  const box = $('#disks');
+  if (!list.length) {
+    box.innerHTML = `<div class="glass empty"><div class="big">${ico('sd')}</div><h3>${t('empty_t')}</h3><ul><li>${t('empty_1')}</li><li>${t('empty_2')}</li><li>${t('empty_3')}</li></ul></div>`;
+  } else {
+    box.innerHTML = '<div class="grid">' + list.map((d, i) => {
+      const v = (d.volumes || [])[0];
+      const used = v && v.size ? Math.round(100 * (v.size - v.free) / v.size) : 0;
+      return `<button class="glass disk" data-n="${d.number}" style="animation-delay:${i * 70}ms">
+        <div class="dtop"><div class="dicon">${ico(d.bus === 'USB' ? 'usb' : 'sd')}</div>
+          <div><div class="dname">${esc(d.name || 'Disk ' + d.number)}</div><div class="dmeta">${diskSub(d)}</div></div></div>
+        <div class="chips">${chipsFor(d)}</div>
+        ${v && v.size ? `<div class="bar"><i style="width:${used}%"></i></div>` : ''}</button>`;
+    }).join('') + '</div>';
+    box.querySelectorAll('.disk').forEach(b => {
+      b.onclick = () => { S.sel = S.disks.find(d => d.number == b.dataset.n); renderDisk(); setView('disk'); };
+      b.onmousemove = e => { const r = b.getBoundingClientRect(); b.style.setProperty('--mx', (e.clientX - r.left) + 'px'); b.style.setProperty('--my', (e.clientY - r.top) + 'px'); };
+    });
+  }
+  $('#tools').innerHTML = `<div class="sect">${t('tools_t')}</div><div class="acts">` +
+    [['shred','shred'],['vault','vault']].map(([k, ic]) => actCard(k, ic, false, false)).join('') + '</div>';
+  $('#tools').querySelectorAll('.act').forEach(b => b.onclick = () => openSheet(b.dataset.a));
+}
+function actCard(k, ic, rec, dis, hint, titleKey, descKey) {
+  return `<button class="glass act ${k === 'format' || k === 'fake' || k === 'restore' ? 'danger' : ''} ${rec ? 'rec' : ''}" data-a="${k}" ${dis ? 'disabled' : ''}>
+    ${rec ? `<span class="badge">${t('rec')}</span>` : ''}
+    <div class="ai">${ico(ic)}</div><div><b>${t(titleKey || 'a_' + k)}</b><span>${dis ? hint : t(descKey || 'a_' + k + '_d')}</span></div></button>`;
+}
+function renderDisk() {
+  const d = S.sel; if (!d) return;
+  const s = diskState(d), isImg = !!d.image;
+  let diag = '';
+  if (!isImg) {
+    const k = s.nomedia ? 'dead' : (s.ro && s.raw ? 'both' : s.ro ? 'ro' : s.raw ? 'raw' : 'ok');
+    const cls = k === 'ok' ? 'ok' : (k === 'raw' ? 'warn' : 'bad');
+    diag = `<div class="diag ${cls}"><div class="di">${ico(k === 'ok' ? 'check' : 'warn')}</div><div><b>${t('diag_' + k + '_t')}</b><span>${t('diag_' + k + '_d')}</span></div></div>`;
+  }
+  const rec = isImg ? 'recover' : (s.nomedia ? 'diagnose' : (s.raw ? 'recover' : (s.ro ? 'unlock' : 'recover')));
+  let html = `<div class="glass dhead"><div class="dicon">${ico(isImg ? 'folder' : (d.bus === 'USB' ? 'usb' : 'sd'))}</div>
+      <div><h1>${esc(d.name)}</h1><div class="dmeta">${isImg ? esc(d.image) : diskSub(d)}</div>
+      ${isImg ? '' : `<div class="chips" style="margin-top:10px">${chipsFor(d)}</div>`}</div></div>${diag}`;
+  const sec = (title, items) => `<div class="sect">${t(title)}</div><div class="acts">${items.join('')}</div>`;
+  if (isImg) {
+    html += `<div class="acts">${actCard('recover', 'recover', true, false)}</div>`;
+  } else {
+    const nm = s.nomedia, nofs = nm || s.raw;
+    const C = (k, ic, dis, hint, tk, dk) => actCard(k, ic, k === rec, dis, hint, tk, dk);
+    html += sec('s_rescue', [C('recover','recover',nm,t('need_media')), C('image','save',nm,t('need_media')), C('restore','restore',nm,t('need_media'))]);
+    html += sec('s_repair', [C('unlock','unlock',nm,t('need_media')), C('repair','tool',nofs,nm ? t('need_media') : t('need_fs')), C('parts','parts',nm,t('need_media')), C('format','trash',nm,t('need_media'))]);
+    html += sec('s_health', [C('diagnose','pulse',false), C('surface','grid',nm,t('need_media')), C('fake','spy',nm,t('need_media')), C('bench','speed',nm,t('need_media'))]);
+    html += sec('s_tools', [C('info','info',false), s.ro ? C('wblock','lock',nm,'', 'a_wblock_off', 'a_wblock_off_d') : C('wblock','shield',nm,t('need_media'), 'a_wblock_on', 'a_wblock_on_d'),
+      C('eject','eject',false), C('bitlocker','key',nofs,nm ? t('need_media') : t('need_fs')), C('shred','shred',false), C('vault','vault',false)]);
+  }
+  $('#diskBody').innerHTML = html;
+  $('#diskBody').querySelectorAll('.act').forEach(b => b.onclick = () => openSheet(b.dataset.a));
+}
+
+/* ---------------- sheets ---------------- */
+function showSheet(html, wide) { const sh = $('#sheet'); sh.className = 'sheet glass' + (wide ? ' wide' : ''); sh.innerHTML = html; $('#scrim').classList.add('on'); }
+function hideSheet() { $('#scrim').classList.remove('on'); }
+$('#scrim').addEventListener('mousedown', e => { if (e.target.id === 'scrim') hideSheet(); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') hideSheet(); });
+async function pick(kind) { try { const r = await api('/api/pick', {kind}); return r; } catch(e) { toast(e.message); return {path:'', paths:[]}; } }
+const fld = (id, val, ph, btn) => `<div class="field"><input type="text" id="${id}" value="${esc(val)}" placeholder="${esc(ph || '')}">${btn ? `<button class="btn ghost" id="${id}b">${ico('folder')}${t('browse')}</button>` : ''}</div>`;
+const sepOf = p => (p && p.includes('/')) ? '/' : '\\';
+const dirOf = p => { const i = Math.max(p.lastIndexOf('\\'), p.lastIndexOf('/')); return i > 0 ? p.slice(0, i) : p; };
+const baseOf = p => p.split(/[\\/]/).pop();
+
+function openSheet(a) {
+  const d = S.sel || {};
+  if (a === 'unlock') return startJob('/api/unlock', {disk: d.number});
+  if (a === 'repair') return startJob('/api/chkdsk', {disk: d.number});
+  if (a === 'diagnose') return startJob('/api/diagnose', {disk: d.number});
+  if (a === 'surface') return startJob('/api/surface', {disk: d.number});
+  if (a === 'bench') return startJob('/api/bench', {disk: d.number});
+  if (a === 'eject') return startJob('/api/eject', {disk: d.number});
+  if (a === 'wblock') return startJob('/api/wblock', {disk: d.number, on: !diskState(d).ro});
+  if (a === 'info') return sheetInfo(d);
+  if (a === 'parts') return sheetParts(d);
+  if (a === 'recover') {
+    showSheet(`<h2>${t('s_recover')}</h2><p class="d">${t('s_recover_d')}</p>
+      <div class="types">${Object.keys(S.types).map(k => `<button class="tchip ${S.types[k] ? 'on' : ''}" data-k="${k}">${ico(tcol[k])}${t('tp_' + k)}</button>`).join('')}</div>
+      <label class="lbl">${t('out_lbl')}</label>${fld('outdir', S.outdir, 'D:\\Recovered', true)}
+      <div class="dmeta" style="margin-top:8px">${t('out_hint')}</div>
+      <div class="btns"><button class="btn ghost" id="cx">${t('cancel')}</button><button class="btn pri" id="go">${ico('scan')}${t('start_scan')}</button></div>`);
+    document.querySelectorAll('.tchip').forEach(b => b.onclick = () => { S.types[b.dataset.k] = S.types[b.dataset.k] ? 0 : 1; b.classList.toggle('on'); });
+    $('#outdirb').onclick = async () => { const r = await pick('folder'); if (r.path) $('#outdir').value = r.path; };
+    $('#cx').onclick = hideSheet;
+    $('#go').onclick = () => {
+      S.outdir = $('#outdir').value.trim();
+      const body = {outdir: S.outdir, types: Object.keys(S.types).filter(k => S.types[k])};
+      if (d.image) body.image = d.image; else body.disk = d.number;
+      startJob('/api/recover', body);
+    };
+  }
+  if (a === 'image') {
+    showSheet(`<h2>${t('s_image')}</h2><p class="d">${t('s_image_d')}</p>
+      <label class="lbl">${t('img_lbl')}</label>${fld('imgf', S.imgfile, 'D:\\card_backup.img', true)}
+      <div class="btns"><button class="btn ghost" id="cx">${t('cancel')}</button><button class="btn pri" id="go">${ico('save')}${t('start_image')}</button></div>`);
+    $('#imgfb').onclick = async () => { const r = await pick('folder'); if (r.path) $('#imgf').value = r.path.replace(/[\\/]$/, '') + sepOf(r.path) + 'card_backup.img'; };
+    $('#cx').onclick = hideSheet;
+    $('#go').onclick = () => { S.imgfile = $('#imgf').value.trim(); startJob('/api/image', {disk: d.number, outfile: S.imgfile}); };
+  }
+  if (a === 'restore') {
+    showSheet(`<h2>${t('s_restore')}</h2><div class="warnbox">${ico('warn')}<div>${t('s_restore_w')}<br><b>${esc(d.name)} · ${fmtB(d.size)}</b></div></div>
+      <label class="lbl">${t('restore_file')}</label>${fld('rimg', '', 'D:\\card_backup.img', true)}
+      <label class="toggle" style="margin-top:14px"><input type="checkbox" id="rver" checked><span>${t('verify_lbl')}</span></label>
+      <label class="lbl">${t('confirm_lbl')}<b style="color:var(--txt)">${d.number}</b></label>${fld('conf', '')}
+      <label class="chk"><input type="checkbox" id="und">${t('understand')}</label>
+      <div class="btns"><button class="btn ghost" id="cx">${t('cancel')}</button><button class="btn red" id="go" disabled>${ico('restore')}${t('do_restore')}</button></div>`);
+    const gate = () => { $('#go').disabled = !($('#conf').value.trim() === String(d.number) && $('#und').checked && $('#rimg').value.trim()); };
+    $('#rimgb').onclick = async () => { const r = await pick('image'); if (r.path) { $('#rimg').value = r.path; gate(); } };
+    $('#conf').oninput = gate; $('#und').onchange = gate; $('#rimg').oninput = gate;
+    $('#cx').onclick = hideSheet;
+    $('#go').onclick = () => startJob('/api/restore', {disk: d.number, image: $('#rimg').value.trim(), verify: $('#rver').checked, confirm: $('#conf').value.trim()});
+  }
+  if (a === 'format' || a === 'fake') return sheetDanger(a, d);
+  if (a === 'bitlocker') {
+    showSheet(`<h2>${t('bl_t')}</h2><p class="d">${t('bl_d')}</p>
+      <label class="lbl">${t('vt_pw')}</label><div class="field"><input type="password" id="pw1"></div>
+      <label class="lbl">${t('vt_pw2')}</label><div class="field"><input type="password" id="pw2"></div>
+      <div class="note">${t('vt_warn')}</div>
+      <div class="btns"><button class="btn ghost" id="cx">${t('cancel')}</button><button class="btn pri" id="go">${ico('key')}${t('bl_go')}</button></div>`);
+    $('#cx').onclick = hideSheet;
+    $('#go').onclick = () => { const p = $('#pw1').value; if (p.length < 6) return toast(t('vt_short')); if (p !== $('#pw2').value) return toast(t('vt_mismatch')); startJob('/api/bitlocker', {disk: d.number, password: p}); };
+  }
+  if (a === 'shred') return sheetShred();
+  if (a === 'vault') return sheetVault();
+}
+function sheetDanger(a, d) {
+  const isF = a === 'format';
+  let fs = d.size > 32e9 ? 'exFAT' : 'FAT32', mode = 'quick';
+  showSheet(`<h2>${t(isF ? 's_format' : 's_fake')}</h2><div class="warnbox">${ico('warn')}<div>${t(isF ? 's_format_w' : 's_fake_w')}<br><b>${esc(d.name)} · ${fmtB(d.size)}</b></div></div>
+    ${isF ? `<label class="lbl">${t('fs_lbl')}</label><div class="seg" id="fsseg">${['FAT32','exFAT','NTFS'].map(x => `<button data-f="${x}" class="${x === fs ? 'on' : ''}">${x}</button>`).join('')}</div>
+    <div class="note">${t('fs_note')}</div>
+    <label class="lbl">${t('mode_lbl')}</label><div class="seg" id="mdseg"><button data-m="quick" class="on">${t('m_quick')}</button><button data-m="full">${t('m_full')}</button></div>
+    <label class="lbl">${t('name_lbl')}</label>${fld('vlabel', 'CARD')}` : ''}
+    <label class="lbl">${t('confirm_lbl')}<b style="color:var(--txt)">${d.number}</b></label>${fld('conf', '')}
+    <label class="chk"><input type="checkbox" id="und">${t('understand')}</label>
+    <div class="btns"><button class="btn ghost" id="cx">${t('cancel')}</button><button class="btn red" id="go" disabled>${ico('trash')}${t(isF ? 'do_format' : 'do_fake')}</button></div>`);
+  if (isF) {
+    $('#fsseg').querySelectorAll('button').forEach(b => b.onclick = () => { fs = b.dataset.f; $('#fsseg').querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b)); });
+    $('#mdseg').querySelectorAll('button').forEach(b => b.onclick = () => { mode = b.dataset.m; $('#mdseg').querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b)); });
+  }
+  const gate = () => { $('#go').disabled = !($('#conf').value.trim() === String(d.number) && $('#und').checked); };
+  $('#conf').oninput = gate; $('#und').onchange = gate;
+  $('#cx').onclick = hideSheet;
+  $('#go').onclick = () => isF ? startJob('/api/format', {disk: d.number, fs, mode, label: $('#vlabel').value, confirm: $('#conf').value.trim()})
+                              : startJob('/api/fakecap', {disk: d.number, confirm: $('#conf').value.trim()});
+}
+async function sheetInfo(d) {
+  showSheet(`<h2>${t('s_info')}</h2><p class="d">${esc(d.name)}</p><div id="infob" class="note">…</div>
+    <div class="note">${t('in_note')}</div><div class="btns"><button class="btn ghost" id="cx">${t('close')}</button></div>`);
+  $('#cx').onclick = hideSheet;
+  try {
+    const i = await api('/api/devinfo?disk=' + d.number);
+    const row = (k, v) => v ? `<dt>${t(k)}</dt><dd>${esc(v)}</dd>` : '';
+    $('#infob').outerHTML = `<dl class="kv">${row('in_model', i.model)}${row('in_mfr', i.manufacturer)}${row('in_iface', i.interface)}${row('in_vid', i.vid)}${row('in_pid', i.pid)}
+      ${row('in_serial', i.serial)}${row('in_fw', i.firmware)}${row('in_media', i.mediaType)}${row('in_size', i.size ? fmtB(i.size) : '')}
+      ${row('in_sector', (i.logSector || i.bytesPerSector || '') + ' / ' + (i.physSector || ''))}${row('in_style', i.partStyle)}${row('in_health', i.health)}${row('in_pnp', i.pnp)}</dl>`;
+  } catch(e) { $('#infob').textContent = e.message; }
+}
+function askText(msg, def) { return new Promise(res => { const v = window.prompt(msg, def || ''); res(v); }); }
+async function sheetParts(d) {
+  showSheet(`<h2>${t('s_parts')}</h2><p class="d">${esc(d.name)} · ${fmtB(d.size)}</p><div id="pbody" class="note">…</div>`, true);
+  const load = async () => {
+    let r; try { r = await api('/api/parts?disk=' + d.number); } catch(e) { $('#pbody').textContent = e.message; return; }
+    const rows = (r.parts || []).map(p => `<tr><td>${p.number}</td><td>${p.letter ? p.letter + ':' : '–'}</td><td>${esc(p.label || '')}</td><td>${esc(p.fs || p.type || '')}</td><td>${fmtB(p.size)}</td>
+      <td>${p.letter ? `<button class="mini" data-o="label" data-p="${p.number}" data-l="${p.letter}">${t('pt_rename')}</button>` : ''}<button class="mini" data-o="letter" data-p="${p.number}" data-l="${p.letter}">${t('pt_letterbtn')}</button>
+      ${p.fs === 'NTFS' ? `<button class="mini" data-o="resize" data-p="${p.number}" data-l="${p.letter}">${t('pt_resize')}</button>` : ''}<button class="mini red" data-o="delete" data-p="${p.number}" data-l="${p.letter}">${t('pt_delete')}</button></td></tr>`).join('');
+    $('#pbody').innerHTML = `${rows ? `<table class="tbl"><tr><th>${t('pt_num')}</th><th>${t('pt_letter')}</th><th>${t('pt_label')}</th><th>${t('pt_fs')}</th><th>${t('pt_size')}</th><th></th></tr>${rows}</table>` : `<div class="note">${t('pt_none')}</div>`}
+      <div class="note">${t('pt_resize_note')}</div>
+      <label class="lbl">${t('pt_create')} — ${t('pt_free')}: ${fmtB(r.freeExtent)}</label>
+      <div class="row2"><div class="field"><input type="text" id="psz" placeholder="${t('pt_size_gb')}"></div><div class="field"><select id="pfs"><option>exFAT</option><option>FAT32</option><option>NTFS</option></select></div></div>
+      <div class="field" style="margin-top:10px"><input type="text" id="plb" value="DATA" placeholder="${t('pt_label')}"><button class="btn pri" id="pcr">${t('pt_do')}</button></div>
+      <div class="btns"><button class="btn ghost" id="cx">${t('close')}</button></div>`;
+    $('#cx').onclick = hideSheet;
+    const run = async body => {
+      try { const x = await api('/api/partop', Object.assign({disk: d.number}, body)); toast((x.ok ? t('pt_done') + ': ' : '') + (x.log || []).join(' ')); await loadDisks(); S.sel = S.disks.find(z => z.number === d.number) || S.sel; renderDisk(); await load(); }
+      catch(e) { toast(e.message); }
+    };
+    $('#pcr').onclick = () => { const gb = parseFloat($('#psz').value); const c = window.prompt(t('confirm_lbl') + d.number); if (c === null) return; run({op:'create', size: gb > 0 ? Math.round(gb * 1e9) : 0, fs: $('#pfs').value, label: $('#plb').value, confirm: c.trim()}); };
+    $('#pbody').querySelectorAll('.mini').forEach(b => b.onclick = async () => {
+      const o = b.dataset.o, p = +b.dataset.p, l = b.dataset.l;
+      if (o === 'label') { const v = await askText(t('pt_ask_label'), ''); if (v) run({op:'label', letter:l, label:v}); }
+      else if (o === 'letter') { const v = await askText(t('pt_ask_letter'), ''); if (v) run({op:'letter', part:p, newletter:v}); }
+      else if (o === 'resize') { const v = await askText(t('pt_ask_size'), ''); const g = parseFloat(v); if (g > 0) { const c = window.prompt(t('confirm_lbl') + d.number); if (c !== null) run({op:'resize', part:p, size:Math.round(g * 1e9), confirm:c.trim()}); } }
+      else if (o === 'delete') { const c = window.prompt(t('confirm_lbl') + d.number); if (c !== null) run({op:'delete', part:p, confirm:c.trim()}); }
+    });
+  };
+  load();
+}
+function sheetShred() {
+  let paths = [];
+  showSheet(`<h2>${t('sh_t')}</h2><div class="warnbox">${ico('warn')}<div>${t('sh_w')}</div></div>
+    <div class="row" style="margin-top:16px"><button class="btn ghost" id="pf">${ico('doc')}${t('sh_pick')}</button><button class="btn ghost" id="pd">${ico('folder')}${t('sh_pickf')}</button></div>
+    <div class="log" id="shl" style="margin-top:12px;max-height:120px;min-height:44px">${t('sh_none')}</div>
+    <label class="lbl">${t('sh_passes')}</label><div class="seg" id="pseg">${[1,3,7].map(n => `<button data-n="${n}" class="${n === 3 ? 'on' : ''}">${n}</button>`).join('')}</div>
+    <div class="note">${t('sh_flash')}</div>
+    <div class="btns"><button class="btn ghost" id="cx">${t('cancel')}</button><button class="btn red" id="go" disabled>${ico('shred')}${t('sh_go')}</button></div>`);
+  let passes = 3;
+  const upd = () => { $('#shl').textContent = paths.length ? paths.join('\n') : t('sh_none'); $('#go').disabled = !paths.length; };
+  $('#pf').onclick = async () => { const r = await pick('any'); if (r.paths && r.paths.length) { paths = r.paths; upd(); } };
+  $('#pd').onclick = async () => { const r = await pick('folder'); if (r.path) { paths = [r.path]; upd(); } };
+  $('#pseg').querySelectorAll('button').forEach(b => b.onclick = () => { passes = +b.dataset.n; $('#pseg').querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b)); });
+  $('#cx').onclick = hideSheet;
+  $('#go').onclick = () => startJob('/api/shred', {paths, passes});
+}
+function sheetVault() {
+  let mode = 'enc', kind = 'file';
+  const draw = () => {
+    showSheet(`<h2>${t('vt_t')}</h2>
+      <div class="seg" id="vm"><button data-m="enc" class="${mode === 'enc' ? 'on' : ''}">${t('vt_enc')}</button><button data-m="dec" class="${mode === 'dec' ? 'on' : ''}">${t('vt_dec')}</button></div>
+      <label class="lbl">${mode === 'enc' ? t('vt_src') : t('vt_vfile')}</label>
+      <div class="field"><input type="text" id="vsrc">${mode === 'enc' ? `<button class="btn ghost" id="vb1">${ico('doc')}${t('vt_file')}</button><button class="btn ghost" id="vb2">${ico('folder')}${t('vt_folder')}</button>` : `<button class="btn ghost" id="vb1">${ico('folder')}${t('browse')}</button>`}</div>
+      <label class="lbl">${mode === 'enc' ? t('vt_out_enc') : t('vt_out_dec')}</label><div class="field"><input type="text" id="vout"><button class="btn ghost" id="vb3">${ico('folder')}${t('browse')}</button></div>
+      <label class="lbl">${t('vt_pw')}</label><div class="field"><input type="password" id="pw1"></div>
+      ${mode === 'enc' ? `<label class="lbl">${t('vt_pw2')}</label><div class="field"><input type="password" id="pw2"></div><div class="note">${t('vt_warn')}</div>` : ''}
+      <div class="btns"><button class="btn ghost" id="cx">${t('cancel')}</button><button class="btn pri" id="go">${ico(mode === 'enc' ? 'lock' : 'unlock')}${t(mode === 'enc' ? 'vt_enc' : 'vt_dec')}</button></div>`);
+    $('#vm').querySelectorAll('button').forEach(b => b.onclick = () => { mode = b.dataset.m; draw(); });
+    if (mode === 'enc') {
+      $('#vb1').onclick = async () => { const r = await pick('any'); if (r.path) { $('#vsrc').value = r.path; $('#vout').value = r.path.replace(/[\\/]$/, '') + '.cwvault'; } };
+      $('#vb2').onclick = async () => { const r = await pick('folder'); if (r.path) { $('#vsrc').value = r.path; $('#vout').value = r.path.replace(/[\\/]$/, '') + '.cwvault'; } };
+      $('#vb3').onclick = async () => { const r = await pick('folder'); if (r.path && $('#vsrc').value) $('#vout').value = r.path.replace(/[\\/]$/, '') + sepOf(r.path) + baseOf($('#vsrc').value.replace(/[\\/]$/, '')) + '.cwvault'; };
+    } else {
+      $('#vb1').onclick = async () => { const r = await pick('vault'); if (r.path) { $('#vsrc').value = r.path; $('#vout').value = r.path.replace(/\.cwvault$/i, '') + '_opened'; } };
+      $('#vb3').onclick = async () => { const r = await pick('folder'); if (r.path) $('#vout').value = r.path; };
+    }
+    $('#cx').onclick = hideSheet;
+    $('#go').onclick = () => {
+      const pw = $('#pw1').value;
+      if (mode === 'enc') { if (pw.length < 6) return toast(t('vt_short')); if (pw !== $('#pw2').value) return toast(t('vt_mismatch')); }
+      startJob('/api/vault', {mode, path: $('#vsrc').value.trim(), out: $('#vout').value.trim(), password: pw});
+    };
+  };
+  draw();
+}
+
+/* ---------------- jobs ---------------- */
+async function startJob(path, body) {
+  try {
+    await api(path, body);
+    hideSheet(); S.jobId = ''; S.files = []; S.renderedFiles = 0; S.filesSeen = 0; S.logSeen = 0; S.job = null; S.verdictFor = '';
+    $('#jobBody').innerHTML = ''; setView('job'); poll(true);
+  } catch(e) { toast(e.code === 409 ? t('e_busy') : e.message); }
+}
+function ringHtml(pct, state) {
+  const C = 2 * Math.PI * 88, off = C * (1 - pct / 100);
+  return `<div class="ring ${state}"><svg viewBox="0 0 200 200"><circle class="trk" cx="100" cy="100" r="88" fill="none" stroke-width="12"/><circle class="val" cx="100" cy="100" r="88" fill="none" stroke-width="12" stroke-dasharray="${C}" stroke-dashoffset="${off}"/></svg>
+    <div class="mid"><div class="pct" id="pct">${Math.floor(pct)}<small>%</small></div><div class="cap" id="cap"></div></div></div>`;
+}
+const TITLES = {recover:'s_recover', image:'s_image', restore:'s_restore', unlock:'s_unlock', chkdsk:'s_chk', format:'s_format', diagnose:'s_diagnose', surface:'s_surface', fakecap:'s_fake',
+                bench:'s_bench', wblock:'s_wblock', eject:'s_eject', bitlocker:'s_bitlocker', shred:'s_shred', vault:'s_vault'};
+const STEPKEY = (s, kind) => (kind === 'diagnose' && s === 'write') ? 'stp_write2' : ({write:'stp_write', test:'stp_test', size:'stp_size', read:'stp_read', verdict:'stp_verdict'}[s] || 'stp_' + s);
+function buildJob(j) {
+  const left = [];
+  if (j.ring) left.push(`<div class="glass ringbox"><div id="ringw">${ringHtml(0, 'running')}</div>
+      <div class="stats"><div class="stat" id="sfw"><small>${t('stat_found')}</small><b id="sf">0</b></div><div class="stat"><small>${t('stat_speed')}</small><b id="ss">–</b></div>
+      <div class="stat"><small>${t('stat_elapsed')}</small><b id="se">0:00</b></div><div class="stat"><small>${t('stat_eta')}</small><b id="sr">–</b></div>
+      <div class="stat bad" id="sbw" style="display:none;grid-column:1/-1"><small>${t('stat_bad')}</small><b id="sb">0</b></div></div></div>`);
+  if (j.steps && j.steps.length) left.push(`<div class="glass panel"><ul class="steps" id="steps">${j.steps.map((s, i) => `<li data-i="${i}"><span class="sn">${i + 1}</span>${t(STEPKEY(s, j.kind))}</li>`).join('')}</ul></div>`);
+  let right = '';
+  if (j.kind === 'recover') right += `<h3>${t('gal_t')}</h3><div class="counts" id="counts"></div><div class="gal" id="gal"><div class="galempty">${t('gal_empty')}</div></div>`;
+  if (j.kind === 'surface') right += `<canvas class="map" id="map" width="768" height="240"></canvas><div class="legend"><span><i style="background:#34d399"></i>${t('lg_ok')}</span><span><i style="background:#fbbf24"></i>${t('lg_slow')}</span><span><i style="background:#fb7185"></i>${t('lg_bad')}</span><span><i style="background:#232a3d"></i>${t('lg_pending')}</span></div>`;
+  if (j.kind === 'bench') right += `<div class="bars" id="bars"></div><div id="bbadges"></div>`;
+  right += `<div id="jsum"></div><details class="lg" ${j.kind === 'bench' || j.kind === 'surface' ? '' : 'open'}><summary>${ico('doc')}${t('details')}</summary><div class="log" id="log"></div></details>`;
+  $('#jobBody').innerHTML = `<div class="jhead"><div><h1>${t(TITLES[j.kind] || 'details')}</h1><div class="dmeta">${esc(j.title)}</div></div><div class="sp"></div>
+    <span class="status running" id="jst"><span class="sd"></span><span id="jstt"></span></span><button class="btn ghost" id="jstop">${ico('x')}${t('stop')}</button></div>
+    <div class="jmain" style="${left.length ? '' : 'grid-template-columns:1fr'}">${left.length ? `<div style="display:flex;flex-direction:column;gap:16px">${left.join('')}</div>` : ''}<div class="glass panel">${right}</div></div>`;
+  $('#jstop').onclick = () => api('/api/cancel', {});
+}
+function drawMap(j) {
+  const cv = $('#map'); if (!cv) return; const g = cv.getContext('2d'); const cells = j.cells || ''; const N = 1024, cols = 64, rows = 16, w = cv.width / cols, h = cv.height / rows;
+  const frac = j.progress.total ? j.progress.done / j.progress.total : 0;
+  g.clearRect(0, 0, cv.width, cv.height);
+  for (let i = 0; i < N; i++) {
+    const c = cells[i] || '0'; const pending = j.status === 'running' && (i / N) > frac;
+    g.fillStyle = pending ? '#232a3d' : (c === '2' ? '#fb7185' : c === '1' ? '#fbbf24' : '#34d399');
+    const x = (i % cols) * w, y = Math.floor(i / cols) * h; g.beginPath(); g.roundRect(x + 1, y + 1, w - 2, h - 2, 3); g.fill();
+  }
+}
+function drawBars(j) {
+  const r = j.result || {}, rows = [['bn_seqR', r.seqRead, 'MB/s', 200], ['bn_seqW', r.seqWrite, 'MB/s', 200], ['bn_rndR', r.randRead, 'IOPS', 6000], ['bn_rndW', r.randWrite, 'IOPS', 3000]];
+  $('#bars').innerHTML = rows.map(([k, v, u, mx]) => `<div class="brow"><small><span>${t(k)}</span><b>${v == null ? '…' : ltr(Math.round(v).toLocaleString() + ' ' + u)}</b></small><div class="bar"><i style="width:${v == null ? 0 : Math.min(100, 100 * v / mx)}%"></i></div></div>`).join('');
+}
+function updateJob(j) {
+  const running = j.status === 'running';
+  $('#jst').className = 'status ' + j.status; $('#jstt').textContent = t('st_' + j.status);
+  $('#jstop').style.display = running ? '' : 'none';
+  const p = j.progress;
+  if (j.ring) {
+    const pct = p.total ? Math.min(100, 100 * p.done / p.total) : 0;
+    const state = running ? 'running' : (j.status === 'done' ? 'done' : '');
+    const rw = $('#ringw');
+    if (rw.dataset.state !== state) { rw.innerHTML = ringHtml(pct, state); rw.dataset.state = state; }
+    rw.querySelector('.val').style.strokeDashoffset = 2 * Math.PI * 88 * (1 - pct / 100);
+    $('#pct').innerHTML = (j.status === 'done' ? '100' : Math.floor(pct)) + '<small>%</small>';
+    $('#cap').textContent = p.total > 1 ? t('scanned', {a: fmtB(p.done), b: fmtB(p.total)}) : '';
+    $('#sfw').style.display = j.kind === 'recover' ? '' : 'none';
+    $('#sf').textContent = p.found || j.nfiles; $('#ss').textContent = p.speed ? ltr(fmtBraw(p.speed) + '/s') : '–';
+    $('#se').textContent = fmtT(j.elapsed);
+    $('#sr').textContent = running && p.speed ? fmtT((p.total - p.done) / p.speed) : '–';
+    $('#sbw').style.display = p.bad ? '' : 'none'; $('#sb').textContent = p.bad;
+  }
+  if (j.steps && j.steps.length) document.querySelectorAll('#steps li').forEach(li => {
+    const i = +li.dataset.i, done = j.step > i || (!running && j.step >= j.steps.length);
+    li.className = done ? 'done' : (j.step === i && running ? 'cur' : '');
+    if (done) li.querySelector('.sn').innerHTML = ico('check');
+  });
+  if (j.kind === 'recover') { $('#counts').innerHTML = Object.entries(p.counts || {}).map(([k, v]) => `<span class="cnt">${k.toUpperCase()}<b>${v}</b></span>`).join(''); addThumbs(); }
+  if (j.kind === 'surface') drawMap(j);
+  if (j.kind === 'bench') drawBars(j);
+  if (!running && $('#jsum').dataset.k !== j.id) { $('#jsum').dataset.k = j.id; $('#jsum').innerHTML = verdictHtml(j); bindRow(j); if (j.kind === 'bench') benchBadges(j); }
+  const lg = $('#log');
+  if (lg && j.log && j.log.length) { j.log.forEach(l => { const d = document.createElement('div'); d.className = l.lvl; d.textContent = l.msg; lg.appendChild(d); }); lg.scrollTop = lg.scrollHeight; }
+}
+const vb = (cls, ic, title, inner, btns) => `<div class="verdict ${cls}"><div class="vi">${ico(ic)}</div><div><h3>${title}</h3>${inner || ''}<div class="btns">${btns || ''}</div></div></div>`;
+const B = (x, label, pri, ic) => `<button class="btn ${pri ? 'pri' : 'ghost'}" data-x="${x}">${ic ? ico(ic) : ''}${label}</button>`;
+const SWSVG = () => `<svg class="sw" viewBox="0 0 300 150"><path d="M90 14h110l34 34v88a8 8 0 0 1-8 8H98a8 8 0 0 1-8-8V22a8 8 0 0 1 8-8z" fill="rgba(255,255,255,.06)" stroke="#5eead4" stroke-width="2.4"/>
+  <path d="M104 14v28M122 14v28M140 14v28M158 14v28" stroke="#5eead4" stroke-width="3" stroke-linecap="round" opacity=".7"/>
+  <rect x="72" y="60" width="18" height="64" rx="5" fill="#0b1020" stroke="#8b5cf6" stroke-width="2"/><rect x="74" y="64" width="14" height="22" rx="3" fill="#fb7185"/>
+  <path d="M62 112l8-10M62 112l-8-10" stroke="#fb7185" stroke-width="0"/><text x="30" y="82" fill="#fb7185" font-size="12" font-weight="700" text-anchor="middle">${t('sw_lock')}</text><text x="30" y="118" fill="#34d399" font-size="12" font-weight="700" text-anchor="middle">${t('sw_ok')}</text>
+  <path d="M56 90v20" stroke="#34d399" stroke-width="2.4" stroke-linecap="round"/><path d="M50 104l6 8 6-8" fill="none" stroke="#34d399" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+function verdictHtml(j) {
+  const r = j.result || {}, st = r.state || '';
+  if (j.status === 'error' && j.kind !== 'vault') return vb('bad', 'warn', t('st_error'), `<p>${esc(j.error)}</p>`, B('disk', t(S.sel ? 'back_disk' : 'back_home')));
+  if (j.status === 'cancelled' && j.kind !== 'recover') return vb('warn', 'warn', t('st_cancelled'), '', B('disk', t(S.sel ? 'back_disk' : 'back_home')));
+  const back = B('disk', t(S.sel ? 'back_disk' : 'back_home'));
+  switch (j.kind) {
+    case 'recover': { const n = r.found || j.nfiles;
+      return n ? vb('ok', 'check', t('done_n', {n}), `<p>${t('done_n_d')}</p>`, B('open', t('open_folder'), 1, 'folder') + back)
+               : vb('warn', 'warn', t('done_none'), `<p>${t('done_none_d')}</p>`, back); }
+    case 'image': return vb('ok', 'check', t('img_done'), `<p>${t('img_done_d')}</p>${r.bad ? `<p style="margin-top:6px;color:#fcd34d">${t('img_bad', {n: r.bad})}</p>` : ''}<p style="direction:ltr;margin-top:6px"><code>${esc(r.file || '')}</code></p>`, B('open', t('open_folder'), 1, 'folder') + back);
+    case 'restore': return st === 'ok' ? vb('ok', 'check', t('restore_ok'), `<p>${t('restore_ok_d')}${r.verified ? t('restore_ver') : ''}</p>`, back)
+                                      : vb('bad', 'warn', t('restore_bad'), `<p>${t('restore_bad_d')}</p>`, back);
+    case 'unlock':
+      if (st === 'ok') return vb('ok', 'check', t('v_ok_t'), `<p>${t('v_ok_d')}</p>`, back);
+      if (st === 'locked') return vb('bad', 'lock', t('v_locked_t'), `<p>${t('v_locked_d')}</p>${SWSVG()}<ul><li>${t('v_b1')}</li><li>${t('v_b2')}</li><li>${t('v_b3')}</li></ul>`, B('recover', t('cta_recover'), 1, 'recover') + B('diagnose', t('a_diagnose'), 0, 'pulse') + back);
+      if (st === 'noletter') return vb('warn', 'warn', t('v_noletter_t'), `<p>${t('v_noletter_d')}</p>`, B('recover', t('cta_recover'), 1, 'recover') + back);
+      return vb('bad', 'warn', t('v_failed_t'), `<p>${t('v_failed_d')}</p>`, back);
+    case 'chkdsk': return st === 'ok' ? vb('ok', 'check', t('c_ok'), '', back) : st === 'fixed' ? vb('ok', 'check', t('c_fixed'), '', back) : vb('warn', 'warn', t('c_problems'), '', B('recover', t('cta_recover'), 1, 'recover') + back);
+    case 'format': return st === 'ok' ? vb('ok', 'check', t('f_ok'), `<p>${t('f_ok_d')}</p>`, back) : vb('bad', 'warn', t('f_failed'), `<p>${t('f_failed_d')}</p>`, back);
+    case 'diagnose': {
+      const facts = `<dl class="kv" style="margin-top:12px"><dt>${t('dg_claimed')}</dt><dd>${fmtB(r.claimed)}</dd><dt>${t('dg_phys')}</dt><dd>${fmtB(r.phys)}</dd>
+        <dt>${t('dg_reads')}</dt><dd>${r.readsTotal != null ? r.readsOK + ' / ' + r.readsTotal : '–'}</dd><dt>${t('dg_write')}</dt><dd>${t('w_' + (r.writeTest === 'ok' ? 'ok' : r.writeTest === 'fail' ? 'fail' : 'na'))}</dd>
+        <dt>${t('dg_flag')}</dt><dd>${r.readonlyFlag ? t('yes') : t('no')}</dd></dl>`;
+      if (st === 'ok') return vb('ok', 'check', t('dg_ok'), `<p>${t('dg_ok_d')}</p>${facts}`, back);
+      if (st === 'degraded') return vb('warn', 'warn', t('dg_degraded'), `<p>${t('dg_degraded_d')}</p>${facts}`, B('image', t('cta_image'), 1, 'save') + B('surface', t('cta_surface'), 0, 'grid') + back);
+      if (st === 'swlock') return vb('bad', 'lock', t('dg_swlock'), `<p>${t('dg_swlock_d')}</p>${facts}`, B('unlock', t('cta_unlock'), 1, 'unlock') + B('recover', t('cta_recover'), 0, 'recover') + back);
+      if (st === 'hwlock') return vb('bad', 'lock', t('dg_hwlock'), `<p>${t('dg_hwlock_d')}</p>${SWSVG()}<ul><li>${t('v_b1')}</li><li>${t('v_b2')}</li><li>${t('v_b3')}</li></ul>${facts}`, B('recover', t('cta_recover'), 1, 'recover') + back);
+      return vb('bad', 'warn', t('dg_dead'), `<p>${t('dg_dead_d')}</p><ul><li>${t('dg_dead_1')}</li><li>${t('dg_dead_2')}</li><li>${t('dg_dead_3')}</li></ul>${facts}`, back); }
+    case 'surface': {
+      const cls = st === 'ok' ? 'ok' : st === 'slow' ? 'warn' : 'bad';
+      const d = st === 'ok' ? t('sf_ok_d', {v: Math.round(r.avgMBs || 0)}) : st === 'slow' ? t('sf_slow_d') : t('sf_bad_d');
+      return vb(cls, st === 'ok' ? 'check' : 'warn', t('sf_' + st), `<p>${d}</p>`, (st === 'ok' ? '' : B('image', t('cta_image'), 1, 'save') + B('recover', t('cta_recover'), 0, 'recover')) + back); }
+    case 'fakecap': if (st === 'writeerror') return vb('warn', 'lock', t('fk_werr'), `<p>${t('fk_werr_d')}</p>`, B('unlock', t('a_unlock'), 1, 'unlock') + back);
+      return st === 'ok' ? vb('ok', 'check', t('fk_ok'), `<p>${t('fk_ok_d')}</p>`, B('format', t('fk_fmt'), 1, 'trash') + back)
+      : vb('bad', 'warn', t('fk_fake'), `<p>${t('fk_fake_d', {c: fmtB(r.claimed), r: fmtB(r.real)})}</p>`, B('format', t('fk_fmt'), 1, 'trash') + back);
+    case 'bench': return vb('ok', 'check', t('bn_done'), `<div class="badges" id="bb"></div>${r.noWrite ? `<p style="margin-top:10px">${t('bn_nowrite')}</p>` : ''}`, back);
+    case 'wblock': return r.on ? vb(st === 'ok' ? 'ok' : 'bad', st === 'ok' ? 'shield' : 'warn', t(st === 'ok' ? 'wb_on' : 'f_failed'), `<p>${t('wb_on_d')}</p>`, back) : vb(st === 'ok' ? 'ok' : 'bad', st === 'ok' ? 'check' : 'warn', t(st === 'ok' ? 'wb_off' : 'f_failed'), `<p>${t('wb_off_d')}</p>`, back);
+    case 'eject': return st === 'ok' ? vb('ok', 'check', t('ej_ok'), '', B('home', t('back_home'), 1)) : vb('warn', 'warn', t('ej_busy'), `<p>${t('ej_busy_d')}</p>`, B('retry', t('ej_retry'), 0) + B('kill', t('ej_kill'), 1) + back);
+    case 'bitlocker': return st === 'ok' ? vb('ok', 'check', t('bl_ok'), '', back) : st === 'unavailable' ? vb('warn', 'warn', t('bl_un'), `<p>${t('bl_un_d')}</p>`, B('vault', t('a_vault'), 1, 'vault') + back) : vb('bad', 'warn', t('f_failed'), '', back);
+    case 'shred': return vb('ok', 'check', t('sh_done', {n: r.files || 0}), `<p>${t('sh_flash')}</p>`, B('home', t('back_home'), 1));
+    case 'vault':
+      if (j.status === 'error') return vb('bad', 'warn', t(st === 'wrongpw' ? 'vt_wrong' : 'st_error'), `<p>${esc(j.error)}</p>`, B('home', t('back_home')));
+      return r.file ? vb('ok', 'check', t('vt_done_enc'), `<p style="direction:ltr"><code>${esc(r.file)}</code></p>`, B('home', t('back_home'), 1))
+                    : vb('ok', 'check', t('vt_done_dec', {n: r.files || 0}), '', B('open', t('open_folder'), 1, 'folder') + B('home', t('back_home')));
+  }
+  return '';
+}
+function benchBadges(j) {
+  const r = j.result || {}, bb = $('#bb'); if (!bb) return;
+  const chip = (txt, on) => `<span class="badge2 ${on ? '' : 'no'}">${txt}</span>`;
+  bb.innerHTML = chip(r.class || '–', !!r.class) + chip(r.v || '–', !!r.v) + chip(r.a || 'A–', !!r.a) +
+    (r.seqWrite ? `<span class="badge2 ${r.seqWrite >= 30 ? '' : 'no'}">${r.seqWrite >= 30 ? t('bn_4k_ok') : t('bn_4k_no')}</span>` : '');
+}
+function bindRow(j) {
+  document.querySelectorAll('#jsum [data-x]').forEach(b => b.onclick = async () => {
+    const x = b.dataset.x;
+    if (x === 'open') return api('/api/open', {});
+    if (x === 'retry' || x === 'kill') { return startJob('/api/eject', {disk: S.sel.number, kill: x === 'kill'}); }
+    await api('/api/dismiss', {}).catch(() => {}); S.jobId = ''; S.job = null;
+    if (x === 'home' || (x === 'disk' && !S.sel) || x === 'vault') { await loadDisks(); setView('home'); if (x === 'vault') sheetVault(); return; }
+    await loadDisks();
+    if (S.sel && !S.sel.image) { const f = S.disks.find(d => d.number === S.sel.number); if (f) S.sel = f; }
+    renderDisk(); setView('disk');
+    if (x !== 'disk') openSheet(x);
+  });
+}
+function addThumbs() {
+  const gal = $('#gal'); if (!gal) return;
+  const MAX = 150;
+  if (S.renderedFiles === 0 && S.files.length) gal.innerHTML = '';
+  while (S.renderedFiles < S.files.length) {
+    const f = S.files[S.renderedFiles++];
+    if (gal.querySelectorAll('.th:not(.more)').length >= MAX) continue;
+    const d = document.createElement('div'); d.className = 'th' + (f.ok ? '' : ' part'); d.title = f.rel;
+    if (['jpg','png','gif','bmp','webp'].includes(f.ext)) { const im = new Image(); im.loading = 'lazy'; im.src = '/api/thumb?t=' + encodeURIComponent(TOKEN) + '&f=' + encodeURIComponent(f.rel); d.appendChild(im); }
+    else d.textContent = f.ext;
+    d.onclick = () => api('/api/open', {rel: f.rel}).catch(() => {});
+    gal.insertBefore(d, gal.querySelector('.more'));
+  }
+  const shown = gal.querySelectorAll('.th:not(.more)').length, extra = S.files.length - shown;
+  let m = gal.querySelector('.more'); if (extra > 0) { if (!m) { m = document.createElement('div'); m.className = 'th more'; gal.appendChild(m); } m.textContent = '+' + extra; } else if (m) m.remove();
+}
+let pollTimer = null;
+async function poll() {
+  clearTimeout(pollTimer);
+  try {
+    const r = await api(`/api/state?job=${S.jobId}&since=${S.filesSeen}&logsince=${S.logSeen}`);
+    const j = r.job;
+    if (j) {
+      if (j.id !== S.jobId) { S.jobId = j.id; S.filesSeen = 0; S.logSeen = 0; S.files = []; S.renderedFiles = 0; buildJob(j); if (S.view !== 'job') setView('job'); }
+      S.files.push(...j.files); S.filesSeen += j.files.length; S.logSeen += j.log.length;
+      S.job = j; updateJob(j);
+    }
+  } catch(e) { /* retry */ }
+  pollTimer = setTimeout(poll, S.job && S.job.status === 'running' ? 450 : 1200);
+}
+
+/* ---------------- boot ---------------- */
+$('#langBtn').onclick = () => { S.lang = S.lang === 'he' ? 'en' : 'he'; try { localStorage.setItem('cw_lang', S.lang); } catch(e) {} applyLang(); renderHome(); if (S.view === 'disk') renderDisk();
+  if (S.job) { const j = S.job; S.jobId = ''; S.filesSeen = 0; S.logSeen = 0; S.files = []; S.renderedFiles = 0; } };
+$('#refreshBtn').onclick = loadDisks;
+$('#showAll').onchange = e => { S.showAll = e.target.checked; renderHome(); };
+$('#backHome').onclick = () => { setView('home'); loadDisks(); };
+$('#openImg').onclick = async () => {
+  const r = await pick('image');
+  if (r.path) { S.sel = {image: r.path, name: baseOf(r.path), size: 0, bus: 'IMG', volumes: [], style: 'IMG'}; renderDisk(); setView('disk'); }
+};
+window.addEventListener('pagehide', () => { try { navigator.sendBeacon('/api/bye?t=' + encodeURIComponent(TOKEN)); } catch(e) {} });
+setInterval(() => api('/api/ping', {}).catch(() => {}), 3000);
+(async function init() {
+  try { S.info = await api('/api/info'); } catch(e) {}
+  $('#ver').textContent = 'v' + (S.info.version || '');
+  applyLang(); setView('home'); await loadDisks(); poll();
+})();
+</script>
+</body>
+</html>
